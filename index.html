@@ -21,6 +21,7 @@
         <option value="splitter">Diviseur (1 → 2)</option>
         <option value="binary-sep">Séparateur binaire (type distillation)</option>
         <option value="rxn-simple">Réacteur simple (1 réaction)</option>
+        <option value="rxn-multi">Réactions multiples (ν-matrice)</option>
       </select>
     </section>
 
@@ -125,6 +126,32 @@
       <label><input type="checkbox" id="atomCheck"> Vérifier les bilans atomiques (optionnel)</label>
       <div id="atomicsBox" class="mt"></div>
     </section>
+
+    <!-- Multiple reactions -->
+<section class="card unit-panel" id="panel-rxn-multi" hidden>
+  <h2>Réactions multiples (ν-matrice)</h2>
+  <p>Test d’indépendance (rang de ν). Si indépendant, calcul de N<sub>out</sub> et des fractions molaires.</p>
+  <div class="grid2">
+    <div>
+      <h3>Alimentation (molaire)</h3>
+      <div id="NinMultiBox"></div>
+      <label>Nombre de réactions R</label>
+      <input id="Rcount" type="number" step="1" min="1" value="2">
+      <button id="buildNu" class="mt">Construire la matrice ν (R × S)</button>
+    </div>
+    <div>
+      <h3>Matrice stœchiométrique ν (réactions × espèces)</h3>
+      <div id="nuMultiBox"></div>
+      <h3>Extents  ξ<sub>k</sub></h3>
+      <div id="xiBox"></div>
+      <small>Convention: ν<sub>kj</sub> &lt; 0 pour les réactifs, &gt; 0 pour les produits. </small>
+    </div>
+  </div>
+  <button class="primary" id="solveRxnMulti">Tester l’indépendance & Calculer</button>
+  <div class="result" id="rxnMultiResult"></div>
+</section>
+
+  
 
   </main>
 
