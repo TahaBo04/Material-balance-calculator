@@ -565,8 +565,110 @@ flowsheetBox?.addEventListener("drop", e=>{
   block.style.padding = "6px 10px";
   block.style.background = "#eee";
   block.innerHTML = `<b>${type}</b><br><small>${id}</small>`;
+  block.dataset.uid = id;
+  block.addEventListener("click", ()=>{
+    openPropPanel(id);
+  });
   flowsheetBox.appendChild(block);
 
   flowsheetUnits.push({id,type,x:e.offsetX,y:e.offsetY,inputs:[],outputs:[]});
   console.log("Flowsheet units:", flowsheetUnits);
 });
+// global store (you likely already have it)
+window.flowsheetUnits = window.flowsheetUnits || []; // [{id,type,x,y,params:{},...}]
+
+// Get unit by id
+function getUnit(uid){
+  return flowsheetUnits.find(u=>u.id===uid);
+}
+
+// Open and populate the panel for a unit
+function openPropPanel(uid){
+  const u = getUnit(uid);
+  if (!u) return;
+  propTitle.textContent = `Propriétés — ${u.type} (${u.id})`;
+  propPanel.hidden = false;
+
+  // Minimal generic form (name + notes + simple params by type)
+  let html = `
+    <div class="row"><label>Nom</label><input id="u_name" value="${u.name??""}" placeholder="ex: Mixer-1"></div>
+    <div class="row"><label>Notes</label><textarea id="u_notes" rows="2" placeholder="remarques...">${u.notes??""}</textarea></div>
+  `;
+
+  if (u.type === "mixer") {
+    html += `<div class="row"><label>Feeds (n)</label><input id="u_nin" type="number" min="2" step="1" value="${u.params?.nIn ?? 2}"></div>`;
+  } else if (u.type === "splitter") {
+    html += `<div class="row"><label>Sorties (n)</label><input id="u_nout" type="number" min="2" step="1" value="${u.params?.nOut ?? 2}"></div>`;
+  } else if (u.type === "binary-sep") {
+    html += `
+      <div class="row"><label>Récup. R_A</label><input id="u_RA" type="number" step="any" value="${u.params?.RA ?? ""}" placeholder="0–1"></div>
+    `;
+  } else if (u.type === "rxn-simple") {
+    html += `<div class="row"><label>ξ initial</label><input id="u_xi" type="number" step="any" value="${u.params?.xi ?? ""}"></div>`;
+  } else if (u.type === "rxn-multi") {
+    html += `<div class="row"><label>R (réactions)</label><input id="u_R" type="number" min="1" step="1" value="${u.params?.R ?? 2}"></div>`;
+  }
+
+  html += `<div class="row" style="justify-content:flex-end"><button id="u_save" class="primary">Enregistrer</button></div>`;
+  propContent.innerHTML = html;
+
+  byId("u_save").onclick = ()=>{
+    // Save generic fields
+    u.name = byId("u_name")?.value ?? u.name;
+    u.notes= byId("u_notes")?.value ?? u.notes;
+    u.params = u.params || {};
+
+    // Save per-type params (optional but handy for later)
+    if (u.type==="mixer") u.params.nIn   = parseInt(byId("u_nin")?.value || u.params.nIn || 2, 10);
+    if (u.type==="splitter") u.params.nOut= parseInt(byId("u_nout")?.value || u.params.nOut || 2, 10);
+    if (u.type==="binary-sep") u.params.RA= parseFloat(byId("u_RA")?.value || u.params.RA || "");
+    if (u.type==="rxn-simple") u.params.xi= parseFloat(byId("u_xi")?.value || u.params.xi || "");
+    if (u.type==="rxn-multi") u.params.R  = parseInt(byId("u_R")?.value || u.params.R || 2, 10);
+
+    propPanel.hidden = true;
+    console.log("Updated unit:", u);
+  };
+}
+// --- Draggable panel helper ---
+function makeDraggable(panelEl, handleEl){
+  let startX=0, startY=0, origX=0, origY=0, dragging=false;
+
+  function onDown(e){
+    dragging = true;
+    const rect = panelEl.getBoundingClientRect();
+    origX = rect.left; origY = rect.top;
+    startX = (e.touches?.[0]?.clientX ?? e.clientX);
+    startY = (e.touches?.[0]?.clientY ?? e.clientY);
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    document.addEventListener("touchmove", onMove, {passive:false});
+    document.addEventListener("touchend", onUp);
+  }
+  function onMove(e){
+    if(!dragging) return;
+    const x = (e.touches?.[0]?.clientX ?? e.clientX);
+    const y = (e.touches?.[0]?.clientY ?? e.clientY);
+    const dx = x - startX, dy = y - startY;
+    panelEl.style.left = Math.max(0, origX + dx) + "px";
+    panelEl.style.top  = Math.max(0, origY + dy) + "px";
+    e.preventDefault?.();
+  }
+  function onUp(){
+    dragging=false;
+    document.removeEventListener("mousemove", onMove);
+    document.removeEventListener("mouseup", onUp);
+    document.removeEventListener("touchmove", onMove);
+    document.removeEventListener("touchend", onUp);
+  }
+  handleEl.addEventListener("mousedown", onDown);
+  handleEl.addEventListener("touchstart", onDown, {passive:false});
+}
+
+// Init panel once DOM is ready
+const propPanel = byId("propPanel");
+const propHeader = byId("propPanelHeader");
+const propCloseBtn = byId("propClose");
+const propTitle = byId("propTitle");
+const propContent = byId("propContent");
+if (propPanel && propHeader) makeDraggable(propPanel, propHeader);
+propCloseBtn?.addEventListener("click", ()=> propPanel.hidden = true);
