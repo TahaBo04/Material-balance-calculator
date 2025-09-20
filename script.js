@@ -203,33 +203,96 @@ byId("solveSplitter").addEventListener("click", ()=>{
 });
 
 // ----- Binary separator -----
+// ----- Binary separator: solve using any ONE of D, xD_A, B, xB_A -----
 byId("solveBinSep").addEventListener("click", ()=>{
-  const F = parseFloat(byId("Ffeed").value || "0");
+  const F  = parseFloat(byId("Ffeed").value || "0");
   const zA = clamp01(parseFloat(byId("zA").value || "0"));
   const RA = clamp01(parseFloat(byId("RA").value || "0"));
-  const D  = byId("D").value ? parseFloat(byId("D").value) : null;
-  const xD = byId("xD").value ? clamp01(parseFloat(byId("xD").value)) : null;
-  if (D==null && xD==null){ byId("binSepResult").innerHTML="<p>Donne soit D, soit xD_A.</p>"; return; }
-  const DxD = RA * F * zA;
-  let Dcalc = D, xDcalc = xD;
-  if (D==null) Dcalc = (zA>0 ? DxD / xD : 0);
-  if (xD==null) xDcalc = (D>0 ? DxD / D : 0);
-  const B = F - Dcalc;
-  const zB = 1 - zA;
-  const xDB = 1 - xDcalc;
-  const mB_in = F * zB;
-  const mB_D  = Dcalc * xDB;
-  const xB = B>0 ? (mB_in - mB_D) / B : 0;
-  const xA_B = 1 - xB;
+
+  // User specs (may be NaN)
+  const D_in  = parseFloat(byId("D").value);
+  const xD_in = clamp01(parseFloat(byId("xD").value));
+  const B_in  = parseFloat(byId("B").value);
+  const xB_in = clamp01(parseFloat(byId("xB").value));
+
+  // Need at least F>0 and a valid RA, zA
+  if (!(F>0) || isNaN(zA) || isNaN(RA)){
+    byId("binSepResult").innerHTML = "<p>Donne F, z<sub>A</sub> et R<sub>A</sub> valides.</p>"; return;
+  }
+
+  // Recovery equation (load-bearing)
+  const DxD = RA * F * zA;        // D * xD_A
+
+  // Which single spec was given?
+  const given = [
+    !isNaN(D_in), !isNaN(xD_in), !isNaN(B_in), !isNaN(xB_in)
+  ].filter(Boolean).length;
+
+  if (given === 0){
+    byId("binSepResult").innerHTML = "<p>Donne UNE des quatre valeurs : D, xD_A, B ou xB_A.</p>"; return;
+  }
+  if (given > 1){
+    // Not fatal, but warn that only one is needed (we’ll still use a consistent set)
+    // You can comment this out if you prefer silent behavior.
+  }
+
+  let D, xD, B, xB;
+
+  if (!isNaN(xB_in)){                 // Case: xB_A given
+    xB = clamp01(xB_in);
+    const Ax_in_bottoms = F*zA - DxD;          // B*xB
+    if (Math.abs(xB) < 1e-12){ byId("binSepResult").innerHTML = "<p>xB_A = 0 → indéterminé (division par zéro). Donne une autre spécification.</p>"; return; }
+    B = Ax_in_bottoms / xB;
+    D = F - B;
+    xD = D>0 ? DxD / D : 0;
+
+  } else if (!isNaN(B_in)){           // Case: B given
+    B = B_in;
+    D = F - B;
+    if (!(D>0)){ byId("binSepResult").innerHTML = "<p>D≤0 : B trop grand. Vérifie la valeur de B.</p>"; return; }
+    xD = DxD / D;
+    const Ax_in_bottoms = F*zA - DxD;
+    xB = B>0 ? Ax_in_bottoms / B : 0;
+
+  } else if (!isNaN(D_in)){           // Case: D given
+    D = D_in;
+    B = F - D;
+    if (!(B>=0)){ byId("binSepResult").innerHTML = "<p>B<0 : D trop grand. Vérifie la valeur de D.</p>"; return; }
+    xD = D>0 ? DxD / D : 0;
+    const Ax_in_bottoms = F*zA - DxD;
+    xB = B>0 ? Ax_in_bottoms / B : 0;
+
+  } else if (!isNaN(xD_in)){          // Case: xD_A given
+    xD = clamp01(xD_in);
+    if (Math.abs(xD) < 1e-12){ byId("binSepResult").innerHTML = "<p>xD_A = 0 → indéterminé (division par zéro). Donne une autre spécification.</p>"; return; }
+    D = DxD / xD;
+    B = F - D;
+    const Ax_in_bottoms = F*zA - DxD;
+    xB = B>0 ? Ax_in_bottoms / B : 0;
+  }
+
+  // Sanity checks
+  const okRanges = (D>=0 && B>=0 && Math.abs(D+B-F) < 1e-8 &&
+                    xD>=-1e-12 && xD<=1+1e-12 && xB>=-1e-12 && xB<=1+1e-12);
+  if (!okRanges){
+    byId("binSepResult").innerHTML = "<p>Spécifications incompatibles (débits/compositions hors bornes).</p>"; return;
+  }
+
+  // Pretty output
+  const xDB = 1 - clamp01(xD);
+  const xA_B = clamp01(xB);
+  const xB_B = 1 - xA_B;
+
   const out = `
     <p><b>Résultats:</b></p>
-    <p>D = ${Dcalc.toFixed(6)} ; B = ${B.toFixed(6)} ; xD_A = ${xDcalc.toFixed(6)} ; xB_A = ${xA_B.toFixed(6)}</p>
+    <p>D = ${D.toFixed(6)} ; B = ${B.toFixed(6)} ; xD_A = ${clamp01(xD).toFixed(6)} ; xB_A = ${xA_B.toFixed(6)}</p>
     <table><thead><tr><th>Courant</th><th>Débit</th><th>x_A</th><th>x_B</th></tr></thead>
     <tbody>
       <tr><td>Feed</td><td>${F.toFixed(6)}</td><td>${zA.toFixed(6)}</td><td>${(1-zA).toFixed(6)}</td></tr>
-      <tr><td>Distillat D</td><td>${Dcalc.toFixed(6)}</td><td>${xDcalc.toFixed(6)}</td><td>${xDB.toFixed(6)}</td></tr>
-      <tr><td>Résidu B</td><td>${B.toFixed(6)}</td><td>${xA_B.toFixed(6)}</td><td>${xB.toFixed(6)}</td></tr>
-    </tbody></table>`;
+      <tr><td>Distillat D</td><td>${D.toFixed(6)}</td><td>${clamp01(xD).toFixed(6)}</td><td>${xDB.toFixed(6)}</td></tr>
+      <tr><td>Résidu B</td><td>${B.toFixed(6)}</td><td>${xA_B.toFixed(6)}</td><td>${xB_B.toFixed(6)}</td></tr>
+    </tbody></table>
+  `;
   byId("binSepResult").innerHTML = out;
 });
 
