@@ -64,33 +64,53 @@ function matrixRank(A){
   return {rank,pivots};
 }
 
-// Small linear solver (normal equations if not square)
-function solveLinear(A,b){
-  const m=A.length, n=A[0].length;
-  let M=A.map((row,i)=>row.concat([b[i]]));
-  if(m!==n){
-    const AT = Array.from({length:n},(_,j)=>Array.from({length:m},(_,i)=>A[i][j]));
-    const ATA = Array.from({length:n},()=>Array(n).fill(0));
+// Small linear solver (uses normal equations if A is not square)
+function solveLinear(A, b){
+  const m = A.length, n = A[0].length;
+
+  // If not square, solve (AᵀA) x = Aᵀ b  (least-squares)
+  let M = A, rhs = b.slice();
+  if (m !== n){
+    const AT = Array.from({length:n}, (_,j)=> Array.from({length:m}, (_,i)=> A[i][j]));
+    const ATA = Array.from({length:n}, ()=> Array(n).fill(0));
     const ATb = Array(n).fill(0);
-    for(let i=0;i<n;i++){
-      for(let j=0;j<n;j++) for(let k=0;k<m;k++) ATA[i][j]+=AT[i][k]*A[k][j];
-      for(let k=0;k<m;k++) ATb[i]+=AT[i][k]*b[k];
+    for (let i=0;i<n;i++){
+      for (let j=0;j<n;j++) for (let k=0;k<m;k++) ATA[i][j] += AT[i][k]*A[k][j];
+      for (let k=0;k<m;k++) ATb[i] += AT[i][k]*b[k];
     }
-    M = ATA.map((row,i)=>row.concat([ATb[i]]));
+    M = ATA; rhs = ATb;
   }
-  const N=M.length, P=M[0].length;
-  for(let col=0,row=0; col<P-1 && row<N; col++){
-    let sel=row; for(let r=row;r<N;r++) if(Math.abs(M[r][col])>Math.abs(M[sel][col])) sel=r;
-    if(Math.abs(M[sel][col])<1e-12) continue;
-    [M[row],M[sel]]=[M[sel],M[row]];
-    const piv=M[row][col]; for(let j=col;j<P;j++) M[row][j]/=piv;
-    for(let r=0;r<N;r++){ if(r===row) continue;
-      const f=M[r][col]; if(Math.abs(f)>1e-12) for(let j=col;j>P-1?j>=col:j>=col;j--) M[r][j]-=f*M[row][j];
-      for(let j=col;j<P;j++) if(Math.abs(f)>1e-12) M[r][j]-=f*M[row][j];
+
+  // Augment [M | rhs]
+  const N = M.length, P = M[0].length + 1;
+  const Aug = M.map((row,i)=> row.concat([rhs[i]]));
+
+  // Gaussian elimination to RREF
+  let row = 0;
+  for (let col=0; col<P-1 && row<N; col++){
+    // pivot
+    let sel = row;
+    for (let r=row; r<N; r++) if (Math.abs(Aug[r][col]) > Math.abs(Aug[sel][col])) sel = r;
+    if (Math.abs(Aug[sel][col]) < 1e-12) continue;
+
+    // swap and normalize
+    [Aug[row], Aug[sel]] = [Aug[sel], Aug[row]];
+    const piv = Aug[row][col];
+    for (let j=col; j<P; j++) Aug[row][j] /= piv;
+
+    // eliminate others
+    for (let r=0; r<N; r++){
+      if (r === row) continue;
+      const f = Aug[r][col];
+      if (Math.abs(f) > 1e-12){
+        for (let j=col; j<P; j++) Aug[r][j] -= f * Aug[row][j];
+      }
     }
     row++;
   }
-  return M.slice(0,Math.min(N,P-1)).map(r=>r[P-1]);
+
+  // solution is last column
+  return Aug.slice(0, Math.min(N, P-1)).map(r => r[P-1]);
 }
 
 // UI switching
