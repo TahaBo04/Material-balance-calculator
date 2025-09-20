@@ -88,10 +88,12 @@
           <h3>Spécifications</h3>
           <label>Récupération de A dans le distillat, R<sub>A</sub></label>
           <input id="RA" type="number" step="any" placeholder="0–1">
-          <label>Une des deux:</label>
-          <div class="row">
-            <input id="D" type="number" step="any" placeholder="Débit distillat D (laisser vide si xD)">
-            <input id="xD" type="number" step="any" placeholder="xD_A (laisser vide si D)">
+          <label>Donne UNE valeur (laisse les autres vides)</label>
+          <div class="row" style="gap:8px; flex-wrap:wrap">
+            <input id="D"   type="number" step="any" placeholder="Débit distillat D">
+            <input id="xD"  type="number" step="any" placeholder="xD_A (0–1)">
+            <input id="B"   type="number" step="any" placeholder="Débit résidu B">
+            <input id="xB"  type="number" step="any" placeholder="xB_A (0–1)">
           </div>
         </div>
       </div>
