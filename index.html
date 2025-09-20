@@ -17,8 +17,8 @@
     <section class="card">
       <label for="unit">Opération</label>
       <select id="unit">
-        <option value="mixer">Mélangeur (2 → 1)</option>
-        <option value="splitter">Diviseur (1 → 2)</option>
+        <option value="mixer">Mélangeur (n → 1)</option>
+        <option value="splitter">Diviseur (1 → n)</option>
         <option value="binary-sep">Séparateur binaire (type distillation)</option>
         <option value="rxn-simple">Réacteur simple (1 réaction)</option>
         <option value="rxn-multi">Réactions multiples (ν-matrice)</option>
@@ -35,41 +35,46 @@
       <small>Les fractions massiques/molaires saisies par courant doivent sommer à 1.</small>
     </section>
 
-    <!-- Mixer -->
+    <!-- Mixer (n → 1) -->
     <section class="card unit-panel" id="panel-mixer">
-      <h2>Mélangeur (2 → 1)</h2>
-      <div class="grid2">
-        <div>
-          <h3>Feed 1</h3>
-          <label>Débit F1</label><input id="F1" type="number" step="any" placeholder="kg/h ou mol/h">
-          <div id="x1Box"></div>
-        </div>
-        <div>
-          <h3>Feed 2</h3>
-          <label>Débit F2</label><input id="F2" type="number" step="any">
-          <div id="x2Box"></div>
-        </div>
+      <h2>Mélangeur (n → 1)</h2>
+
+      <div class="row" style="gap:12px;flex-wrap:wrap">
+        <label>Nombre de feeds n</label>
+        <input id="mixCount" type="number" min="2" step="1" value="2">
+        <button id="buildMixerFeeds">Construire les feeds</button>
       </div>
+
+      <div id="mixFeedsBox" class="mt"></div>
+
       <button class="primary" id="solveMixer">Calculer</button>
       <div class="result" id="mixResult"></div>
     </section>
 
-    <!-- Splitter -->
+    <!-- Splitter (1 → n) -->
     <section class="card unit-panel" id="panel-splitter" hidden>
-      <h2>Diviseur (1 → 2)</h2>
-      <p>Hypothèse: même composition dans toutes les branches.</p>
+      <h2>Diviseur (1 → n)</h2>
+      <p>Hypothèse: compositions identiques sur toutes les branches.</p>
+
       <div class="grid2">
         <div>
           <h3>Feed</h3>
           <label>Débit F</label><input id="Fs" type="number" step="any">
           <div id="xsBox"></div>
         </div>
+
         <div>
-          <h3>Spécifications</h3>
-          <label>Fraction au débit vers le Courant 1, φ</label>
-          <input id="phi" type="number" step="any" placeholder="0–1">
+          <h3>Branches</h3>
+          <div class="row" style="gap:12px;flex-wrap:wrap">
+            <label>Nombre de sorties n</label>
+            <input id="splitCount" type="number" min="2" step="1" value="2">
+            <button id="buildSplitterOuts">Construire les fractions φ<sub>i</sub></button>
+          </div>
+          <div id="splitPhiBox" class="mt"></div>
+          <small>Les fractions φ<sub>i</sub> seront normalisées pour sommer à 1.</small>
         </div>
       </div>
+
       <button class="primary" id="solveSplitter">Calculer</button>
       <div class="result" id="splitResult"></div>
     </section>
