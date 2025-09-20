@@ -44,3 +44,7 @@ small{color:#a7bed6}
 .panel-body input, .panel-body select, .panel-body textarea{
   flex:1; min-width:120px;
 }
+#toolbox .draggable.active{
+  outline: 2px solid #4ade80;  /* green highlight */
+  border-radius: 6px;
+}
