@@ -37,11 +37,9 @@ function formatStream(F, x, comps, title){
           <table><thead><tr><th>Comp.</th><th>Fraction</th><th>Débit partiel</th></tr></thead>
           <tbody>${lines}</tbody></table>`;
 }
-function normalize(fracs){
-  const s = sum(fracs); return s>0 ? fracs.map(v=>v/s) : fracs.slice();
-}
+function normalize(fracs){ const s = sum(fracs); return s>0 ? fracs.map(v=>v/s) : fracs.slice(); }
 
-// Rank via RREF
+// Rank via RREF (rows x cols)
 function matrixRank(A){
   const m = A.length; if (m===0) return {rank:0, pivots:[]};
   const n = A[0].length;
@@ -64,56 +62,45 @@ function matrixRank(A){
   return {rank,pivots};
 }
 
-// Small linear solver (uses normal equations if A is not square)
+// Small linear solver (least-squares if A not square): solves A x = b
 function solveLinear(A, b){
   const m = A.length, n = A[0].length;
+  let M = A.map(r=>r.slice()), rhs = b.slice();
 
-  // If not square, solve (AᵀA) x = Aᵀ b  (least-squares)
-  let M = A, rhs = b.slice();
+  // If over/under-determined: normal equations (A^T A) x = A^T b
   if (m !== n){
-    const AT = Array.from({length:n}, (_,j)=> Array.from({length:m}, (_,i)=> A[i][j]));
-    const ATA = Array.from({length:n}, ()=> Array(n).fill(0));
+    const AT = Array.from({length:n},(_,j)=> Array.from({length:m},(_,i)=> A[i][j]));
+    const ATA = Array.from({length:n},()=>Array(n).fill(0));
     const ATb = Array(n).fill(0);
-    for (let i=0;i<n;i++){
-      for (let j=0;j<n;j++) for (let k=0;k<m;k++) ATA[i][j] += AT[i][k]*A[k][j];
-      for (let k=0;k<m;k++) ATb[i] += AT[i][k]*b[k];
+    for(let i=0;i<n;i++){
+      for(let j=0;j<n;j++) for(let k=0;k<m;k++) ATA[i][j]+=AT[i][k]*A[k][j];
+      for(let k=0;k<m;k++) ATb[i]+=AT[i][k]*b[k];
     }
     M = ATA; rhs = ATb;
   }
 
-  // Augment [M | rhs]
+  // Augment [M | rhs] and Gaussian elimination
   const N = M.length, P = M[0].length + 1;
   const Aug = M.map((row,i)=> row.concat([rhs[i]]));
 
-  // Gaussian elimination to RREF
-  let row = 0;
-  for (let col=0; col<P-1 && row<N; col++){
-    // pivot
-    let sel = row;
-    for (let r=row; r<N; r++) if (Math.abs(Aug[r][col]) > Math.abs(Aug[sel][col])) sel = r;
-    if (Math.abs(Aug[sel][col]) < 1e-12) continue;
-
-    // swap and normalize
-    [Aug[row], Aug[sel]] = [Aug[sel], Aug[row]];
-    const piv = Aug[row][col];
-    for (let j=col; j<P; j++) Aug[row][j] /= piv;
-
-    // eliminate others
-    for (let r=0; r<N; r++){
-      if (r === row) continue;
-      const f = Aug[r][col];
-      if (Math.abs(f) > 1e-12){
-        for (let j=col; j<P; j++) Aug[r][j] -= f * Aug[row][j];
-      }
+  let r = 0;
+  for(let c=0; c<P-1 && r<N; c++){
+    let sel=r; for(let i=r;i<N;i++) if(Math.abs(Aug[i][c])>Math.abs(Aug[sel][c])) sel=i;
+    if (Math.abs(Aug[sel][c]) < 1e-12) continue;
+    [Aug[r],Aug[sel]] = [Aug[sel],Aug[r]];
+    const piv = Aug[r][c];
+    for(let j=c;j<P;j++) Aug[r][j] /= piv;
+    for(let i=0;i<N;i++){
+      if(i===r) continue;
+      const f = Aug[i][c];
+      if (Math.abs(f)>1e-12) for(let j=c;j<P;j++) Aug[i][j] -= f*Aug[r][j];
     }
-    row++;
+    r++;
   }
-
-  // solution is last column
-  return Aug.slice(0, Math.min(N, P-1)).map(r => r[P-1]);
+  return Aug.slice(0, Math.min(N, P-1)).map(row => row[P-1]);
 }
 
-// UI switching
+// ----- UI switching -----
 const unitSel = byId("unit");
 const panels = {
   "mixer": byId("panel-mixer"),
@@ -127,7 +114,7 @@ unitSel.addEventListener("change", ()=>{
   panels[unitSel.value].hidden=false;
 });
 
-// Build inputs when components change
+// ----- Build inputs when components change -----
 function applyComponents(){
   const comps = parseList(byId("components").value);
 
@@ -135,9 +122,10 @@ function applyComponents(){
   buildValueBox("NinMultiBox", comps, "N_in_");
   byId("nuMultiBox").innerHTML = "<small>Choisis R et clique «Construire la matrice ν».</small>";
   byId("xiBox").innerHTML = "";
-  byId("autoXiBox").innerHTML = ""; const auto = byId("autoXi"); if(auto) auto.checked=false;
+  const auto = byId("autoXi"); if (auto) auto.checked = false;
+  const autoBox = byId("autoXiBox"); if (autoBox) autoBox.innerHTML = "";
 
-  // Mixer + Splitter
+  // Mixer & Splitter
   buildFracBox("x1Box", comps, "w1_");
   buildFracBox("x2Box", comps, "w2_");
   buildFracBox("xsBox", comps, "w_");
@@ -152,18 +140,18 @@ function applyComponents(){
     nuBox.appendChild(row);
   });
   // dropdowns
-  const selKey = byId("keyComp"); if(selKey) selKey.innerHTML="";
-  const selSpec = byId("specComp"); if(selSpec) selSpec.innerHTML="";
+  const selKey = byId("keyComp"); if (selKey) selKey.innerHTML="";
+  const selSpec= byId("specComp"); if (selSpec) selSpec.innerHTML="";
   comps.forEach(c=>{
-    if(selKey){ const o=document.createElement("option"); o.value=c; o.textContent=c; selKey.appendChild(o); }
-    if(selSpec){ const o2=document.createElement("option"); o2.value=c; o2.textContent=c; selSpec.appendChild(o2); }
+    if (selKey){ const o=document.createElement("option"); o.value=c; o.textContent=c; selKey.appendChild(o); }
+    if (selSpec){ const o2=document.createElement("option"); o2.value=c; o2.textContent=c; selSpec.appendChild(o2); }
   });
   byId("atomicsBox").innerHTML="";
 }
 byId("applyComponents").addEventListener("click", applyComponents);
 applyComponents();
 
-// Build ν-matrix + ξ inputs for multi-reaction
+// ----- Build ν-matrix + ξ inputs -----
 byId("buildNu").addEventListener("click", ()=>{
   const comps = parseList(byId("components").value);
   const R = Math.max(1, parseInt(byId("Rcount").value || "1", 10));
@@ -185,7 +173,7 @@ byId("buildNu").addEventListener("click", ()=>{
   xiDiv.innerHTML = xiHtml;
 });
 
-// Mixer
+// ----- Mixer -----
 byId("solveMixer").addEventListener("click", ()=>{
   const comps = parseList(byId("components").value);
   const F1 = parseFloat(byId("F1").value || "0");
@@ -199,7 +187,7 @@ byId("solveMixer").addEventListener("click", ()=>{
   byId("mixResult").innerHTML = out + checkFractions([x1,x2,x], ["Feed1","Feed2","Produit"]);
 });
 
-// Splitter
+// ----- Splitter -----
 function checkFractions(fracArrays, labels){
   let msg=""; fracArrays.forEach((arr,idx)=>{ const s=sum(arr); if(!near1(s)) msg+=`<p><b>⚠️ ${labels[idx]} :</b> somme=${s.toFixed(6)}. Normalisées automatiquement.</p>`; });
   return msg;
@@ -214,7 +202,7 @@ byId("solveSplitter").addEventListener("click", ()=>{
   byId("splitResult").innerHTML = `<p>Compositions identiques sur les branches (diviseur).</p>${res}`;
 });
 
-// Binary separator
+// ----- Binary separator -----
 byId("solveBinSep").addEventListener("click", ()=>{
   const F = parseFloat(byId("Ffeed").value || "0");
   const zA = clamp01(parseFloat(byId("zA").value || "0"));
@@ -245,7 +233,7 @@ byId("solveBinSep").addEventListener("click", ()=>{
   byId("binSepResult").innerHTML = out;
 });
 
-// Simple reaction with auto-ξ
+// ----- Simple reaction (auto-ξ from conversion or one N_out) -----
 byId("solveRxn").addEventListener("click", ()=>{
   const comps = parseList(byId("components").value);
   const Nin = readVector("NinBox", comps);
@@ -293,59 +281,65 @@ byId("solveRxn").addEventListener("click", ()=>{
   byId("rxnResult").innerHTML = html;
 });
 
-// Multi-reaction: auto-ξ UI
-byId("autoXi").addEventListener("change", ()=>{
-  const box = byId("autoXiBox");
-  box.innerHTML = "";
-  if(!byId("autoXi").checked) return;
+// ----- Multi-reaction: auto-ξ UI (checkbox builds spec rows) -----
+const autoXiEl = byId("autoXi");
+if (autoXiEl){
+  autoXiEl.addEventListener("change", ()=>{
+    const box = byId("autoXiBox");
+    box.innerHTML = "";
+    if(!autoXiEl.checked) return;
 
-  const comps = parseList(byId("components").value);
-  const R = Math.max(1, parseInt(byId("Rcount").value || "1", 10));
-
-  let html = `<p>Donne exactement <b>${R}</b> spécifications (N_out d'espèces OU conversion X de réactifs).</p>`;
-  for(let i=0;i<R;i++){
-    html += `
-      <div class="row" style="flex-wrap:wrap;gap:8px">
-        <select id="specType_${i}">
-          <option value="nout">N_out connu</option>
-          <option value="conv">Conversion réactif X</option>
-        </select>
-        <select id="specComp_${i}">${comps.map(c=>`<option value="${c}">${c}</option>`).join("")}</select>
-        <input id="specVal_${i}" type="number" step="any" placeholder="valeur">
-      </div>`;
-  }
-  html += `<button class="primary mt" id="solveXiAuto">Résoudre ξ à partir des spécifications</button>`;
-  box.innerHTML = html;
-
-  byId("solveXiAuto").onclick = ()=>{
     const comps = parseList(byId("components").value);
-    const Nin = readVector("NinMultiBox", comps);
     const R = Math.max(1, parseInt(byId("Rcount").value || "1", 10));
-    const NU = Array.from({length:R}, (_,k)=> comps.map(c => parseFloat(byId(`nu_${k}_${c}`)?.value || "0")));
 
-    const A=[]; const b=[];
+    let html = `<p>Donne exactement <b>${R}</b> spécifications (N_out d'espèces OU conversion X de réactifs).</p>`;
     for(let i=0;i<R;i++){
-      const type = byId(`specType_${i}`).value;
-      const cj   = byId(`specComp_${i}`).value;
-      const j    = comps.indexOf(cj);
-      const val  = parseFloat(byId(`specVal_${i}`).value || "NaN");
-      if(Number.isNaN(val)){ byId("rxnMultiResult").innerHTML = "<p>Remplis toutes les valeurs.</p>"; return; }
-
-      if (type==="nout"){
-        A.push(NU.map(row => row[j]));            // ν_kj
-        b.push(val - Nin[j]);                     // Nout - Nin
-      }else{
-        A.push(NU.map(row => row[j]));
-        b.push(- val * Nin[j]);                   // sum ν_kj ξ_k = - X Nin
-      }
+      html += `
+        <div class="row" style="flex-wrap:wrap;gap:8px">
+          <select id="specType_${i}">
+            <option value="nout">N_out connu</option>
+            <option value="conv">Conversion réactif X</option>
+          </select>
+          <select id="specComp_${i}">${comps.map(c=>`<option value="${c}">${c}</option>`).join("")}</select>
+          <input id="specVal_${i}" type="number" step="any" placeholder="valeur">
+        </div>`;
     }
-    const xi = solveLinear(A,b);
-    for(let k=0;k<R;k++){ const el=byId(`xi_${k}`); if(el) el.value = xi[k] ?? 0; }
-    byId("rxnMultiResult").innerHTML = `<p>ξ résolus: ${xi.map(v=> (v??0).toFixed(6)).join(", ")}</p>`;
-  };
-});
+    html += `<button class="primary mt" id="solveXiAuto">Résoudre ξ à partir des spécifications</button>`;
+    box.innerHTML = html;
 
-// Multi-reaction solver
+    // Compute and fill ξ1..ξR
+    byId("solveXiAuto").onclick = ()=>{
+      const Nin = readVector("NinMultiBox", comps);
+      const R = Math.max(1, parseInt(byId("Rcount").value || "1", 10));
+      const NU = Array.from({length:R}, (_,k)=> comps.map(c => parseFloat(byId(`nu_${k}_${c}`)?.value || "0")));
+
+      const A=[]; const b=[];
+      for(let i=0;i<R;i++){
+        const type = byId(`specType_${i}`).value;
+        const cj   = byId(`specComp_${i}`).value;
+        const j    = comps.indexOf(cj);
+        const val  = parseFloat(byId(`specVal_${i}`).value || "NaN");
+        if(Number.isNaN(val)){ byId("rxnMultiResult").innerHTML = "<p>Remplis toutes les valeurs.</p>"; return; }
+
+        if (type==="nout"){
+          // Nout_j = Nin_j + sum_k ν_kj ξ_k  -> sum_k ν_kj ξ_k = Nout_j - Nin_j
+          A.push(NU.map(row => row[j]));
+          b.push(val - Nin[j]);
+        }else{
+          // Conversion X of reactant j: consumption = X * Nin_j -> sum_k (-ν_kj) ξ_k = X Nin_j
+          // => sum_k ν_kj ξ_k = - X Nin_j
+          A.push(NU.map(row => row[j]));
+          b.push(- val * Nin[j]);
+        }
+      }
+      const xi = solveLinear(A,b);
+      for(let k=0;k<R;k++){ const el=byId(`xi_${k}`); if(el) el.value = xi[k] ?? 0; }
+      byId("rxnMultiResult").innerHTML = `<p>ξ résolus: ${xi.map(v=> (v??0).toFixed(6)).join(", ")}</p>`;
+    };
+  });
+}
+
+// ----- Multi-reaction: rank + compute Nout, xout -----
 byId("solveRxnMulti").addEventListener("click", ()=>{
   const comps = parseList(byId("components").value);
   const Nin = readVector("NinMultiBox", comps);
