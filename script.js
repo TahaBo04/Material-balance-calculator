@@ -534,3 +534,39 @@ function atomTotals(N,A){
   const {elems,alpha}=A;
   return elems.map((_,e)=> sum(alpha.map((row,j)=> row[e]*(N[j]||0))));
 }
+
+// --- FLOWSHEET BUILDER LOGIC ---
+const flowsheetBox = byId("flowsheet");
+const toolboxItems = document.querySelectorAll("#toolbox .draggable");
+let flowsheetUnits = [];
+
+toolboxItems.forEach(item=>{
+  item.addEventListener("dragstart", e=>{
+    e.dataTransfer.setData("unit-type", item.dataset.type);
+  });
+});
+
+flowsheetBox?.addEventListener("dragover", e=>{
+  e.preventDefault();
+});
+
+flowsheetBox?.addEventListener("drop", e=>{
+  e.preventDefault();
+  const type = e.dataTransfer.getData("unit-type");
+  if (!type) return;
+
+  const id = "u"+(flowsheetUnits.length+1);
+  const block = document.createElement("div");
+  block.className = "unit-block";
+  block.style.position = "absolute";
+  block.style.left = e.offsetX+"px";
+  block.style.top = e.offsetY+"px";
+  block.style.border = "1px solid #333";
+  block.style.padding = "6px 10px";
+  block.style.background = "#eee";
+  block.innerHTML = `<b>${type}</b><br><small>${id}</small>`;
+  flowsheetBox.appendChild(block);
+
+  flowsheetUnits.push({id,type,x:e.offsetX,y:e.offsetY,inputs:[],outputs:[]});
+  console.log("Flowsheet units:", flowsheetUnits);
+});
