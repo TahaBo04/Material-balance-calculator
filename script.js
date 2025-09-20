@@ -47,13 +47,47 @@ function normalize(fracs){
 }
 function clamp01(x){return Math.max(0, Math.min(1, x));}
 
+// Compute rank via Gaussian elimination (RREF) on a copy of matrix (rows x cols)
+function matrixRank(A){
+  const m = A.length; 
+  if (m === 0) return { rank: 0, pivots: [] };
+  const n = A[0].length;
+  const M = A.map(row => row.slice());
+  let rank = 0, row = 0, col = 0, pivots = [];
+  const EPS = 1e-12;
+
+  while(row < m && col < n){
+    // find pivot
+    let sel = row;
+    for(let i=row;i<m;i++){ if(Math.abs(M[i][col]) > Math.abs(M[sel][col])) sel = i; }
+    if(Math.abs(M[sel][col]) < EPS){ col++; continue; }
+    // swap
+    if(sel !== row){ const tmp = M[sel]; M[sel] = M[row]; M[row] = tmp; }
+    // normalize row
+    const piv = M[row][col];
+    for(let j=col;j<n;j++) M[row][j] /= piv;
+    // eliminate other rows
+    for(let i=0;i<m;i++){
+      if(i===row) continue;
+      const f = M[i][col];
+      if(Math.abs(f) > EPS){
+        for(let j=col;j<n;j++) M[i][j] -= f * M[row][j];
+      }
+    }
+    pivots.push({row, col});
+    rank++; row++; col++;
+  }
+  return { rank, pivots };
+}
+
 // UI: unit switching
 const unitSel = byId("unit");
 const panels = {
   "mixer": byId("panel-mixer"),
   "splitter": byId("panel-splitter"),
   "binary-sep": byId("panel-binary-sep"),
-  "rxn-simple": byId("panel-rxn-simple")
+  "rxn-simple": byId("panel-rxn-simple"),
+  "rxn-multi": byId("panel-rxn-multi")   // multi-reaction
 };
 unitSel.addEventListener("change", ()=>{
   Object.values(panels).forEach(p=>p.hidden=true);
@@ -63,28 +97,71 @@ unitSel.addEventListener("change", ()=>{
 // Components apply
 function applyComponents(){
   const comps = parseList(byId("components").value);
-  // mixer fracs
+
+  // ---- MULTI-REACTION (réactions multiples) ----
+  buildValueBox("NinMultiBox", comps, "N_in_"); // inlet vector (molar)
+  byId("nuMultiBox").innerHTML = "<small>Choisis R et clique «Construire la matrice ν».</small>";
+  byId("xiBox").innerHTML = "";
+
+  // ---- MIXER (2→1) ----
   buildFracBox("x1Box", comps, "w1_");
   buildFracBox("x2Box", comps, "w2_");
-  // splitter feed fracs
+
+  // ---- SPLITTER (1→2) ----
   buildFracBox("xsBox", comps, "w_");
-  // reaction: Nin and nu and key dropdown
+
+  // ---- SIMPLE REACTION (1 réaction) ----
   buildValueBox("NinBox", comps, "N_in_");
-  const nuBox = byId("nuBox"); nuBox.innerHTML="";
+  const nuBox = byId("nuBox");
+  nuBox.innerHTML = "";
   comps.forEach(c=>{
-    const row = document.createElement("div"); row.className="row";
+    const row = document.createElement("div");
+    row.className = "row";
     row.innerHTML = `<label style="min-width:70px">ν_${c}</label>
                      <input type="number" step="any" id="nu_${c}" placeholder="négatif réactifs, positif produits">`;
     nuBox.appendChild(row);
   });
-  // key comp dropdown
-  const sel = byId("keyComp"); sel.innerHTML="";
+
+  // key reactant dropdown for simple reaction
+  const sel = byId("keyComp");
+  sel.innerHTML = "";
   comps.forEach(c=>{
-    const opt=document.createElement("option"); opt.value=c; opt.textContent=c; sel.appendChild(opt);
+    const opt = document.createElement("option");
+    opt.value = c; opt.textContent = c;
+    sel.appendChild(opt);
   });
-  // atomics box (empty inputs until user toggles)
-  byId("atomicsBox").innerHTML="";
+
+  // reset optional atomics UI
+  byId("atomicsBox").innerHTML = "";
 }
+
+// Build ν-matrix and ξ vector on demand (keep outside the function)
+byId("buildNu").addEventListener("click", ()=>{
+  const comps = parseList(byId("components").value);
+  const R = Math.max(1, parseInt(byId("Rcount").value || "1", 10));
+
+  // ν (R × S) input table
+  const nuDiv = byId("nuMultiBox");
+  let html = `<table><thead><tr><th>ν (k\\j)</th>${comps.map(c=>`<th>${c}</th>`).join("")}</tr></thead><tbody>`;
+  for(let k=0;k<R;k++){
+    html += `<tr><td>r${k+1}</td>${comps.map(c=>
+      `<td><input type="number" step="any" id="nu_${k}_${c}" placeholder="ν_${k+1},${c}"></td>`
+    ).join("")}</tr>`;
+  }
+  html += `</tbody></table>`;
+  nuDiv.innerHTML = html;
+
+  // ξ vector inputs
+  const xiDiv = byId("xiBox");
+  let xiHtml = `<div class="row" style="flex-wrap:wrap;gap:8px">`;
+  for(let k=0;k<R;k++){
+    xiHtml += `<div><label>ξ_${k+1}</label><input type="number" step="any" id="xi_${k}" placeholder="extent ${k+1}"></div>`;
+  }
+  xiHtml += `</div>`;
+  xiDiv.innerHTML = xiHtml;
+});
+
+// Hook the “Appliquer” button and do the first build
 byId("applyComponents").addEventListener("click", applyComponents);
 applyComponents();
 
@@ -105,7 +182,7 @@ byId("solveMixer").addEventListener("click", ()=>{
   byId("mixResult").innerHTML = out + checkFractions([x1,x2,x], ["Feed1","Feed2","Produit"]);
 });
 
-// ---- SPLITTER (1 -> 2): compositions identiques (cours) ----
+// ---- SPLITTER (1 -> 2): compositions identiques ----
 function checkFractions(fracArrays, labels){
   let msg = "";
   fracArrays.forEach((arr,idx)=>{
@@ -122,10 +199,10 @@ byId("solveSplitter").addEventListener("click", ()=>{
 
   const F1 = phi*F, F2 = (1-phi)*F;
   const res = formatStream(F1, x, comps, "Courant 1") + formatStream(F2, x, comps, "Courant 2");
-  byId("splitResult").innerHTML = `<p>Compositions identiques sur les branches (diviseur).</p>${res}`; // cours
+  byId("splitResult").innerHTML = `<p>Compositions identiques sur les branches (diviseur).</p>${res}`;
 });
 
-// ---- BINARY SEPARATOR (global + A recovery) ----
+// ---- BINARY SEPARATOR (global + récupération de A) ----
 byId("solveBinSep").addEventListener("click", ()=>{
   const F = parseFloat(byId("Ffeed").value || "0");
   const zA = clamp01(parseFloat(byId("zA").value || "0"));
@@ -142,7 +219,7 @@ byId("solveBinSep").addEventListener("click", ()=>{
   if (xD==null) xDcalc = (D>0 ? DxD / D : 0);
   const B = F - Dcalc;
 
-  // Component B balance: F*(1-zA) = D*(1-xD) + B*(1-xB) -> solve xB
+  // Component B balance
   const zB = 1 - zA;
   const xDB = 1 - xDcalc;
   const mB_in = F * zB;
@@ -163,7 +240,7 @@ byId("solveBinSep").addEventListener("click", ()=>{
   byId("binSepResult").innerHTML = out;
 });
 
-// ---- SIMPLE REACTION: N_out = N_in + nu * xi  ----
+// ---- SIMPLE REACTION: N_out = N_in + nu * xi ----
 byId("solveRxn").addEventListener("click", ()=>{
   const comps = parseList(byId("components").value);
   const Nin = readVector("NinBox", comps);
@@ -200,6 +277,50 @@ byId("solveRxn").addEventListener("click", ()=>{
   byId("rxnResult").innerHTML = html;
 });
 
+// ---- MULTI-REACTION: rank(ν), N_out, x_out ----
+byId("solveRxnMulti").addEventListener("click", ()=>{
+  const comps = parseList(byId("components").value);
+  const Nin = readVector("NinMultiBox", comps);
+  const R = Math.max(1, parseInt(byId("Rcount").value || "1", 10));
+
+  // ν (R x S)
+  const NU = Array.from({length:R}, (_,k)=> 
+    comps.map(c => parseFloat(byId(`nu_${k}_${c}`)?.value || "0"))
+  );
+
+  const {rank, pivots} = matrixRank(NU);
+  const independent = (rank === R);
+  let msg = `<p><b>Rang(ν) = ${rank}</b> sur ${R} réactions. ${independent? "Indépendantes ✅" : "Dépendantes ❌"}</p>`;
+  if (!independent){
+    msg += `<p>Choisis un sous-ensemble de ${rank} réactions linéairement indépendantes (pivots ~ lignes ${pivots.map(p=>p.row+1).join(", ")}).</p>`;
+    byId("rxnMultiResult").innerHTML = msg;
+    return;
+  }
+
+  const xi = Array.from({length:R}, (_,k)=> parseFloat(byId(`xi_${k}`)?.value || "0"));
+  const Nout = comps.map((_,j)=>{
+    let add = 0;
+    for (let k=0;k<R;k++) add += NU[k][j]*xi[k];
+    return Nin[j] + add;
+  });
+
+  if (Nout.some(v=>v < -1e-9)){
+    byId("rxnMultiResult").innerHTML = msg + `<p>⚠️ Débits négatifs → extents trop grands vs réactifs (vérifie ν et ξ).</p>`;
+    return;
+  }
+
+  const Ntot = sum(Nout);
+  const xout = Ntot>0 ? Nout.map(v=>v/Ntot) : Nout.map(()=>0);
+
+  let html = msg + `<table><thead><tr><th>Comp.</th><th>N_in</th><th>N_out</th><th>x_out</th></tr></thead><tbody>`;
+  comps.forEach((c,i)=>{
+    html += `<tr><td>${c}</td><td>${(Nin[i]||0).toFixed(6)}</td><td>${(Nout[i]||0).toFixed(6)}</td><td>${(xout[i]||0).toFixed(6)}</td></tr>`;
+  });
+  html += `</tbody></table><p><b>N<sub>tot,out</sub> = ${Ntot.toFixed(6)}</b></p>`;
+  byId("rxnMultiResult").innerHTML = html;
+});
+
+// ----- Atomic-balance helpers (optional) -----
 function buildAtomicBox(comps){
   if (byId("atomicsBox").children.length) return;
   const box = byId("atomicsBox");
