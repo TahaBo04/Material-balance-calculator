@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Bilan de matière — Mini calc</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <header>
+    <h1>Bilan de matière</h1>
+    <p>Choisis une opération unitaire (un seul appareil à la fois).</p>
+  </header>
+
+  <main>
+    <section class="card">
+      <label for="unit">Opération</label>
+      <select id="unit">
+        <option value="mixer">Mélangeur (2 → 1)</option>
+        <option value="splitter">Diviseur (1 → 2)</option>
+        <option value="binary-sep">Séparateur binaire (type distillation)</option>
+        <option value="rxn-simple">Réacteur simple (1 réaction)</option>
+      </select>
+    </section>
+
+    <!-- Common: component list -->
+    <section class="card">
+      <h2>Composants</h2>
+      <div class="row">
+        <input id="components" type="text" placeholder="Ex: A,B (séparés par des virgules)" value="A,B">
+        <button id="applyComponents">Appliquer</button>
+      </div>
+      <small>Les fractions massiques/molaires saisies par courant doivent sommer à 1.</small>
+    </section>
+
+    <!-- Mixer -->
+    <section class="card unit-panel" id="panel-mixer">
+      <h2>Mélangeur (2 → 1)</h2>
+      <div class="grid2">
+        <div>
+          <h3>Feed 1</h3>
+          <label>Débit F1</label><input id="F1" type="number" step="any" placeholder="kg/h ou mol/h">
+          <div id="x1Box"></div>
+        </div>
+        <div>
+          <h3>Feed 2</h3>
+          <label>Débit F2</label><input id="F2" type="number" step="any">
+          <div id="x2Box"></div>
+        </div>
+      </div>
+      <button class="primary" id="solveMixer">Calculer</button>
+      <div class="result" id="mixResult"></div>
+    </section>
+
+    <!-- Splitter -->
+    <section class="card unit-panel" id="panel-splitter" hidden>
+      <h2>Diviseur (1 → 2)</h2>
+      <p>Hypothèse: même composition dans toutes les branches du diviseur.</p>
+      <div class="grid2">
+        <div>
+          <h3>Feed</h3>
+          <label>Débit F</label><input id="Fs" type="number" step="any">
+          <div id="xsBox"></div>
+        </div>
+        <div>
+          <h3>Spécifications</h3>
+          <label>Fraction au débit vers le Courant 1, φ</label>
+          <input id="phi" type="number" step="any" placeholder="0–1">
+          <small>Courant 1: F1 = φ·F ; Courant 2: F2 = (1-φ)·F ; compositions identiques.</small>
+        </div>
+      </div>
+      <button class="primary" id="solveSplitter">Calculer</button>
+      <div class="result" id="splitResult"></div>
+    </section>
+
+    <!-- Binary separator -->
+    <section class="card unit-panel" id="panel-binary-sep" hidden>
+      <h2>Séparateur binaire (type distillation)</h2>
+      <p>Modèle bilan global + récupération du composant clé A dans le distillat (aucune énergie ici).</p>
+      <div class="grid2">
+        <div>
+          <h3>Alimentation</h3>
+          <label>Débit F</label><input id="Ffeed" type="number" step="any">
+          <label>z<sub>A</sub> (fraction)</label><input id="zA" type="number" step="any" placeholder="0–1">
+        </div>
+        <div>
+          <h3>Spécifications</h3>
+          <label>Récupération de A dans le distillat, R<sub>A</sub></label>
+          <input id="RA" type="number" step="any" placeholder="0–1">
+          <label>Une des deux:</label>
+          <div class="row">
+            <input id="D" type="number" step="any" placeholder="Débit distillat D (laisser vide si xD)">
+            <input id="xD" type="number" step="any" placeholder="xD_A (laisser vide si D)">
+          </div>
+        </div>
+      </div>
+      <button class="primary" id="solveBinSep">Calculer</button>
+      <div class="result" id="binSepResult"></div>
+    </section>
+
+    <!-- Simple reaction -->
+    <section class="card unit-panel" id="panel-rxn-simple" hidden>
+      <h2>Réacteur simple (une réaction)</h2>
+      <p>Équation: Σ ν<sub>j</sub>A<sub>j</sub> = 0 ; bilan partiel: N<sub>out,j</sub> = N<sub>in,j</sub> + ν<sub>j</sub> ξ</p>
+      <div class="grid2">
+        <div>
+          <h3>Alimentation (molaire)</h3>
+          <div id="NinBox"></div>
+        </div>
+        <div>
+          <h3>Stœchiométrie</h3>
+          <div id="nuBox"></div>
+          <h3>Progression</h3>
+          <div class="row">
+            <input id="xi" type="number" step="any" placeholder="ξ (si connu)">
+            <input id="convKey" type="number" step="any" placeholder="Conversion du réactif clé Xc (0–1)">
+            <select id="keyComp"></select>
+          </div>
+          <small>Si ξ est vide, on calcule ξ = Xc·N<sub>in,key</sub>/|ν<sub>key</sub>|.</small>
+        </div>
+      </div>
+      <button class="primary" id="solveRxn">Calculer</button>
+      <div class="result" id="rxnResult"></div>
+      <label><input type="checkbox" id="atomCheck"> Vérifier les bilans atomiques (optionnel)</label>
+      <div id="atomicsBox" class="mt"></div>
+    </section>
+
+  </main>
+
+  <footer>
+    <small>Basé sur vos notes de “Bilans de matières” (Ch.1–4) et TD associés. Aucun bilan d’énergie ici. </small>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
