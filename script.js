@@ -535,45 +535,8 @@ function atomTotals(N,A){
   return elems.map((_,e)=> sum(alpha.map((row,j)=> row[e]*(N[j]||0))));
 }
 
-// --- FLOWSHEET BUILDER LOGIC ---
-const flowsheetBox = byId("flowsheet");
-const toolboxItems = document.querySelectorAll("#toolbox .draggable");
-let flowsheetUnits = [];
+// ================= EXISTING HELPERS =================
 
-toolboxItems.forEach(item=>{
-  item.addEventListener("dragstart", e=>{
-    e.dataTransfer.setData("unit-type", item.dataset.type);
-  });
-});
-
-flowsheetBox?.addEventListener("dragover", e=>{
-  e.preventDefault();
-});
-
-flowsheetBox?.addEventListener("drop", e=>{
-  e.preventDefault();
-  const type = e.dataTransfer.getData("unit-type");
-  if (!type) return;
-
-  const id = "u"+(flowsheetUnits.length+1);
-  const block = document.createElement("div");
-  block.className = "unit-block";
-  block.style.position = "absolute";
-  block.style.left = e.offsetX+"px";
-  block.style.top = e.offsetY+"px";
-  block.style.border = "1px solid #333";
-  block.style.padding = "6px 10px";
-  block.style.background = "#eee";
-  block.innerHTML = `<b>${type}</b><br><small>${id}</small>`;
-  block.dataset.uid = id;
-  block.addEventListener("click", ()=>{
-    openPropPanel(id);
-  });
-  flowsheetBox.appendChild(block);
-
-  flowsheetUnits.push({id,type,x:e.offsetX,y:e.offsetY,inputs:[],outputs:[]});
-  console.log("Flowsheet units:", flowsheetUnits);
-});
 // global store (you likely already have it)
 window.flowsheetUnits = window.flowsheetUnits || []; // [{id,type,x,y,params:{},...}]
 
@@ -618,7 +581,7 @@ function openPropPanel(uid){
     u.notes= byId("u_notes")?.value ?? u.notes;
     u.params = u.params || {};
 
-    // Save per-type params (optional but handy for later)
+    // Save per-type params
     if (u.type==="mixer") u.params.nIn   = parseInt(byId("u_nin")?.value || u.params.nIn || 2, 10);
     if (u.type==="splitter") u.params.nOut= parseInt(byId("u_nout")?.value || u.params.nOut || 2, 10);
     if (u.type==="binary-sep") u.params.RA= parseFloat(byId("u_RA")?.value || u.params.RA || "");
@@ -629,46 +592,114 @@ function openPropPanel(uid){
     console.log("Updated unit:", u);
   };
 }
-// --- Draggable panel helper ---
-function makeDraggable(panelEl, handleEl){
-  let startX=0, startY=0, origX=0, origY=0, dragging=false;
 
-  function onDown(e){
-    dragging = true;
-    const rect = panelEl.getBoundingClientRect();
-    origX = rect.left; origY = rect.top;
-    startX = (e.touches?.[0]?.clientX ?? e.clientX);
-    startY = (e.touches?.[0]?.clientY ?? e.clientY);
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-    document.addEventListener("touchmove", onMove, {passive:false});
-    document.addEventListener("touchend", onUp);
+// ================ FLOWSHEET BUILDER GLUE =================
+
+/* tiny util if not already defined */
+const byId = window.byId || ((id)=>document.getElementById(id));
+
+/* 1) show/hide panels including flowsheet */
+(() => {
+  const unitSel = byId("unit");
+  if (!unitSel) return;
+  const panels = {
+    "mixer": byId("panel-mixer"),
+    "splitter": byId("panel-splitter"),
+    "binary-sep": byId("panel-binary-sep"),
+    "rxn-simple": byId("panel-rxn-simple"),
+    "rxn-multi": byId("panel-rxn-multi"),
+    "flowsheet": byId("panel-flowsheet"),
+  };
+  unitSel.addEventListener("change", ()=>{
+    Object.values(panels).forEach(p=>p && (p.hidden = true));
+    const p = panels[unitSel.value]; if (p) p.hidden = false;
+  });
+})();
+
+/* 2) property panel plumbing */
+const propPanel   = byId("propPanel");
+const propHeader  = byId("propPanelHeader");
+const propTitle   = byId("propTitle");
+const propContent = byId("propContent");
+const propClose   = byId("propClose");
+
+function makeDraggable(panelEl, handleEl){
+  if (!panelEl || !handleEl) return;
+  let sx=0, sy=0, ox=0, oy=0, drag=false;
+  function down(e){
+    drag = true;
+    const r = panelEl.getBoundingClientRect();
+    ox = r.left; oy = r.top;
+    sx = (e.touches?.[0]?.clientX ?? e.clientX);
+    sy = (e.touches?.[0]?.clientY ?? e.clientY);
+    document.addEventListener("mousemove", move);
+    document.addEventListener("mouseup", up);
+    document.addEventListener("touchmove", move, {passive:false});
+    document.addEventListener("touchend", up);
   }
-  function onMove(e){
-    if(!dragging) return;
+  function move(e){
+    if (!drag) return;
     const x = (e.touches?.[0]?.clientX ?? e.clientX);
     const y = (e.touches?.[0]?.clientY ?? e.clientY);
-    const dx = x - startX, dy = y - startY;
-    panelEl.style.left = Math.max(0, origX + dx) + "px";
-    panelEl.style.top  = Math.max(0, origY + dy) + "px";
+    panelEl.style.left = Math.max(0, ox + x - sx) + "px";
+    panelEl.style.top  = Math.max(0, oy + y - sy) + "px";
     e.preventDefault?.();
   }
-  function onUp(){
-    dragging=false;
-    document.removeEventListener("mousemove", onMove);
-    document.removeEventListener("mouseup", onUp);
-    document.removeEventListener("touchmove", onMove);
-    document.removeEventListener("touchend", onUp);
+  function up(){
+    drag = false;
+    document.removeEventListener("mousemove", move);
+    document.removeEventListener("mouseup", up);
+    document.removeEventListener("touchmove", move);
+    document.removeEventListener("touchend", up);
   }
-  handleEl.addEventListener("mousedown", onDown);
-  handleEl.addEventListener("touchstart", onDown, {passive:false});
+  handleEl.addEventListener("mousedown", down);
+  handleEl.addEventListener("touchstart", down, {passive:false});
 }
-
-// Init panel once DOM is ready
-const propPanel = byId("propPanel");
-const propHeader = byId("propPanelHeader");
-const propCloseBtn = byId("propClose");
-const propTitle = byId("propTitle");
-const propContent = byId("propContent");
 if (propPanel && propHeader) makeDraggable(propPanel, propHeader);
-propCloseBtn?.addEventListener("click", ()=> propPanel.hidden = true);
+propClose?.addEventListener("click", ()=> propPanel.hidden = true);
+
+/* 3) flowsheet drag & drop */
+const flowsheetBox = byId("flowsheet");
+const toolboxItems = document.querySelectorAll("#toolbox .draggable");
+
+toolboxItems.forEach(item=>{
+  item.addEventListener("dragstart", (e)=>{
+    e.dataTransfer.setData("unit-type", item.dataset.type);
+  });
+});
+flowsheetBox?.addEventListener("dragover", (e)=> e.preventDefault());
+flowsheetBox?.addEventListener("drop", (e)=>{
+  e.preventDefault();
+  const type = e.dataTransfer.getData("unit-type");
+  if (!type) return;
+
+  const id = "u" + (flowsheetUnits.length + 1);
+
+  // create the visual block
+  const block = document.createElement("div");
+  block.className = "unit-block";
+  block.dataset.uid = id;
+  block.style.position = "absolute";
+  block.style.left = e.offsetX + "px";
+  block.style.top  = e.offsetY + "px";
+  block.style.border = "1px solid #333";
+  block.style.padding = "6px 10px";
+  block.style.background = "#eee";
+  block.style.cursor = "pointer";
+  block.innerHTML = `<b>${type}</b><br><small>${id}</small>`;
+
+  // open properties on click
+  block.addEventListener("click", ()=> openPropPanel(id));
+
+  flowsheetBox.appendChild(block);
+
+  // record it
+  flowsheetUnits.push({
+    id, type,
+    x: e.offsetX, y: e.offsetY,
+    inputs: [], outputs: [],
+    params: {}
+  });
+
+  console.log("Flowsheet units:", flowsheetUnits);
+});
