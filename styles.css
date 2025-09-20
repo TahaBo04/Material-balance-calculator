@@ -21,3 +21,26 @@ th,td{border:1px solid #23314a;padding:8px;text-align:center}
 small{color:#a7bed6}
 .mt{margin-top:8px}
 .unit-panel[hidden]{display:none!important}
+/* draggable panel */
+.panel{
+  position: fixed;           /* stays above canvas */
+  top: 80px; left: 60px;
+  width: 320px; max-width: 90vw; max-height: 80vh;
+  background: #fff; color:#111;
+  border: 1px solid #ccc; border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.15);
+  z-index: 1000; overflow: hidden;
+}
+.panel-header{
+  display:flex; align-items:center; justify-content:space-between;
+  padding: 8px 10px; background:#0a0f1a; color:#fff; cursor: move;
+}
+.panel-header button{
+  background: transparent; border:0; color:#fff; font-size:16px; cursor:pointer;
+}
+.panel-body{ padding: 10px; overflow:auto; max-height: calc(80vh - 44px); }
+.panel-body .row{ display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
+.panel-body label{ min-width:110px; font-weight:600; }
+.panel-body input, .panel-body select, .panel-body textarea{
+  flex:1; min-width:120px;
+}
