@@ -166,24 +166,37 @@
       <button class="primary" id="solveRxnMulti">Tester l’indépendance & Calculer</button>
       <div class="result" id="rxnMultiResult"></div>
     </section>
-    <!-- Flowsheet builder -->
-    <section class="card unit-panel" id="panel-flowsheet" hidden>
-      <h2>Flowsheet Builder</h2>
-      <div class="row">
-      <div id="toolbox" style="flex:0 0 150px; border:1px solid #ccc; padding:10px">
-        <h3>Unités</h3>
-        <div class="draggable" draggable="true" data-type="mixer">➕ Mixer</div>
-        <div class="draggable" draggable="true" data-type="splitter">➗ Splitter</div>
-        <div class="draggable" draggable="true" data-type="binary-sep">⚗️ Binaire</div>
-        <div class="draggable" draggable="true" data-type="rxn-simple">🔥 Réacteur simple</div>
-        <div class="draggable" draggable="true" data-type="rxn-multi">🔥 Réacteur multiple</div>
-      </div>
-      <div id="flowsheet" style="flex:1; border:1px dashed #aaa; min-height:400px; position:relative; margin-left:10px;">
-        <p style="color:#777">Glisse-dépose des unités ici</p>
-      </div>
+<!-- Flowsheet builder -->
+<section class="card unit-panel" id="panel-flowsheet" hidden>
+  <h2>Flowsheet Builder</h2>
+
+  <div class="row" style="gap:10px;flex-wrap:wrap;margin-bottom:10px">
+    <button id="fsConnect" class="secondary">Relier (source → cible)</button>
+    <button id="fsRun" class="primary">Exécuter le flowsheet</button>
+    <small id="fsMsg"></small>
+  </div>
+
+  <div class="row">
+    <div id="toolbox" style="flex:0 0 170px; border:1px solid #ccc; padding:10px">
+      <h3>Unités</h3>
+      <div class="draggable" draggable="true" data-type="feed">🟩 Feed</div>
+      <div class="draggable" draggable="true" data-type="mixer">➕ Mixer</div>
+      <div class="draggable" draggable="true" data-type="splitter">➗ Splitter</div>
+      <div class="draggable" draggable="true" data-type="binary-sep">⚗️ Binaire</div>
+      <div class="draggable" draggable="true" data-type="rxn-simple">🔥 Réacteur simple</div>
+      <div class="draggable" draggable="true" data-type="rxn-multi">🔥 Réacteur multiple</div>
+      <div class="draggable" draggable="true" data-type="sink">🟦 Sink</div>
     </div>
-    </section>
-    <!-- Draggable properties panel -->
+
+    <div id="flowsheet" style="flex:1; border:1px dashed #aaa; min-height:420px; position:relative; margin-left:10px;">
+      <p style="color:#777">Glisse-dépose ou tape pour placer une unité. Bouton “Relier” pour créer un lien.</p>
+    </div>
+  </div>
+
+  <div id="fsResult" class="result mt"></div>
+</section>
+
+<!-- Draggable properties panel (already added earlier) -->
 <div id="propPanel" class="panel" hidden>
   <div class="panel-header" id="propPanelHeader">
     <span id="propTitle">Propriétés</span>
