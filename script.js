@@ -513,84 +513,153 @@ function solveLinear(A,b){
   const x = M.map(row=>row[n]);
   return {ok:true, x};
 }
+/************** FLOWSHEET (desktop + mobile + move) **************/
+(() => {
+  const flowsheetBox = document.getElementById("flowsheet");
+  const toolboxItems = document.querySelectorAll("#toolbox .draggable");
+  if (!flowsheetBox || !toolboxItems.length) return;
 
-/***************** FLOWSHEET BUILDER (basic) *****************/
-// global store for flowsheet units
-window.flowsheetUnits = window.flowsheetUnits || [];
+  // Ensure global store exists
+  window.flowsheetUnits = window.flowsheetUnits || [];
 
-const flowsheetBox = byId("flowsheet");
-const toolboxItems = document.querySelectorAll("#toolbox .draggable");
+  // ---- Helpers ----
+  function placeUnitAt(type, x, y){
+    const id = "u" + (flowsheetUnits.length + 1);
 
-// drag sources
-toolboxItems.forEach(it=>{
-  it.addEventListener("dragstart", e=>{
-    e.dataTransfer.setData("unit-type", it.dataset.type);
+    const block = document.createElement("div");
+    block.className = "unit-block";
+    block.dataset.uid = id;
+    Object.assign(block.style, {
+      position: "absolute",
+      left: x + "px",
+      top:  y + "px",
+      padding: "6px 10px",
+      border: "1px solid var(--border, #333)",
+      background: "var(--card, #eee)",
+      borderRadius: "6px",
+      cursor: "grab",
+      userSelect: "none"
+    });
+    block.innerHTML = `<b>${type}</b><br><small>${id}</small>`;
+
+    // open prop panel
+    block.addEventListener("click", (ev)=>{
+      // ignore click that immediately follows a drag
+      if (block._dragJustEnded) { block._dragJustEnded = false; return; }
+      if (typeof openPropPanel === "function") openPropPanel(id);
+      ev.stopPropagation();
+    });
+
+    // make block draggable inside canvas (pointer events = works on mobile & desktop)
+    makeBlockMoveable(block, flowsheetBox);
+
+    flowsheetBox.appendChild(block);
+
+    // store
+    flowsheetUnits.push({ id, type, x, y, inputs:[], outputs:[], params:{} });
+    // console.log("Flowsheet units:", flowsheetUnits);
+  }
+
+  function makeBlockMoveable(block, container){
+    let startX=0, startY=0, origX=0, origY=0, dragging=false;
+
+    const onDown = (e)=>{
+      // left button or touch
+      if (e.button !== undefined && e.button !== 0) return;
+      dragging = true;
+      block.style.cursor = "grabbing";
+      const r = block.getBoundingClientRect();
+      const rc = container.getBoundingClientRect();
+      origX = r.left - rc.left;
+      origY = r.top  - rc.top;
+      startX = (e.touches?.[0]?.clientX ?? e.clientX);
+      startY = (e.touches?.[0]?.clientY ?? e.clientY);
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+      window.addEventListener("touchmove", onMove, {passive:false});
+      window.addEventListener("touchend", onUp);
+      e.preventDefault?.();
+    };
+
+    const onMove = (e)=>{
+      if (!dragging) return;
+      const x = (e.touches?.[0]?.clientX ?? e.clientX);
+      const y = (e.touches?.[0]?.clientY ?? e.clientY);
+      const dx = x - startX, dy = y - startY;
+      const rc = container.getBoundingClientRect();
+      // keep in bounds a bit
+      const nx = Math.max(0, Math.min(rc.width - block.offsetWidth,  origX + dx));
+      const ny = Math.max(0, Math.min(rc.height- block.offsetHeight, origY + dy));
+      block.style.left = nx + "px";
+      block.style.top  = ny + "px";
+      e.preventDefault?.();
+    };
+
+    const onUp = ()=>{
+      if (!dragging) return;
+      dragging = false;
+      block.style.cursor = "grab";
+      block._dragJustEnded = true; // suppress click after drag
+      setTimeout(()=>block._dragJustEnded=false, 50);
+
+      // persist new coords to store
+      const id = block.dataset.uid;
+      const u  = (window.flowsheetUnits||[]).find(x=>x.id===id);
+      if (u){
+        u.x = parseFloat(block.style.left)||0;
+        u.y = parseFloat(block.style.top)||0;
+      }
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("touchmove", onMove);
+      window.removeEventListener("touchend", onUp);
+    };
+
+    block.addEventListener("mousedown", onDown);
+    block.addEventListener("touchstart", onDown, {passive:false});
+  }
+
+  // ---- Desktop DnD from toolbox ----
+  toolboxItems.forEach(item=>{
+    item.addEventListener("dragstart", (e)=>{
+      e.dataTransfer.setData("unit-type", item.dataset.type);
+    });
   });
-});
-flowsheetBox?.addEventListener("dragover", e=> e.preventDefault());
-flowsheetBox?.addEventListener("drop", e=>{
-  e.preventDefault();
-  const type = e.dataTransfer.getData("unit-type");
-  if(!type) return;
-  const id = "u"+(flowsheetUnits.length+1);
-  const block = document.createElement("div");
-  block.className="unit-block";
-  block.style.position="absolute";
-  block.style.left = e.offsetX+"px";
-  block.style.top  = e.offsetY+"px";
-  block.style.border="1px solid #333";
-  block.style.padding="6px 10px";
-  block.style.background="#eee";
-  block.style.cursor="pointer";
-  block.dataset.uid=id;
-  block.innerHTML = `<b>${type}</b><br><small>${id}</small>`;
-  block.addEventListener("click", ()=> openPropPanel(id));
-  flowsheetBox.appendChild(block);
+  flowsheetBox.addEventListener("dragover", e=> e.preventDefault());
+  flowsheetBox.addEventListener("drop", (e)=>{
+    e.preventDefault();
+    const type = e.dataTransfer.getData("unit-type");
+    if (!type) return;
+    placeUnitAt(type, e.offsetX, e.offsetY);
+  });
 
-  flowsheetUnits.push({id,type,x:e.offsetX,y:e.offsetY,inputs:[],outputs:[],params:{}});
-  console.log("Flowsheet units:", flowsheetUnits);
-});
+  // ---- Mobile/tap-to-place fallback ----
+  let pendingType = null;
 
-/************* Draggable properties panel plumbing *************/
-const propPanel   = byId("propPanel");
-const propHeader  = byId("propPanelHeader");
-const propTitle   = byId("propTitle");
-const propContent = byId("propContent");
-const propClose   = byId("propClose");
+  toolboxItems.forEach(item=>{
+    const arm = ()=>{
+      pendingType = item.dataset.type || null;
+      toolboxItems.forEach(el=>el.classList.remove("active"));
+      if (pendingType) item.classList.add("active");
+    };
+    item.addEventListener("click", arm);
+    item.addEventListener("touchstart", arm, {passive:true});
+  });
 
-function makeDraggable(panelEl, handleEl){
-  if (!panelEl || !handleEl) return;
-  let sx=0, sy=0, ox=0, oy=0, drag=false;
-  function down(e){
-    drag = true;
-    const r = panelEl.getBoundingClientRect();
-    ox = r.left; oy = r.top;
-    sx = (e.touches?.[0]?.clientX ?? e.clientX);
-    sy = (e.touches?.[0]?.clientY ?? e.clientY);
-    document.addEventListener("mousemove", move);
-    document.addEventListener("mouseup", up);
-    document.addEventListener("touchmove", move, {passive:false});
-    document.addEventListener("touchend", up);
-  }
-  function move(e){
-    if(!drag) return;
-    const x = (e.touches?.[0]?.clientX ?? e.clientX);
-    const y = (e.touches?.[0]?.clientY ?? e.clientY);
-    panelEl.style.left = Math.max(0, ox + x - sx) + "px";
-    panelEl.style.top  = Math.max(0, oy + y - sy) + "px";
-    e.preventDefault?.();
-  }
-  function up(){
-    drag=false;
-    document.removeEventListener("mousemove", move);
-    document.removeEventListener("mouseup", up);
-    document.removeEventListener("touchmove", move);
-    document.removeEventListener("touchend", up);
-  }
-  handleEl.addEventListener("mousedown", down);
-  handleEl.addEventListener("touchstart", down, {passive:false});
-}
-if (propPanel && propHeader) makeDraggable(propPanel, propHeader);
-propClose?.addEventListener("click", ()=> propPanel.hidden = true);
+  const placeFromEvent = (clientX, clientY)=>{
+    if (!pendingType) return;
+    const r = flowsheetBox.getBoundingClientRect();
+    const x = clientX - r.left;
+    const y = clientY - r.top;
+    placeUnitAt(pendingType, x, y);
+    pendingType = null;
+    toolboxItems.forEach(el=>el.classList.remove("active"));
+  };
 
+  flowsheetBox.addEventListener("click", (e)=> placeFromEvent(e.clientX, e.clientY));
+  flowsheetBox.addEventListener("touchend", (e)=>{
+    const t = e.changedTouches?.[0]; if (!t) return;
+    placeFromEvent(t.clientX, t.clientY);
+  }, {passive:true});
+})();
 // getUnit + openPropPanel already defined at top and used here
