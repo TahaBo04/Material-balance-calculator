@@ -48,3 +48,13 @@ small{color:#a7bed6}
   outline: 2px solid #4ade80;  /* green highlight */
   border-radius: 6px;
 }
+.unit-block{ color:#0b0f19; }
+.unit-badge{
+  position:absolute; right:6px; bottom:6px;
+  font-size:11px; background:#f1f5f9; border:1px solid #94a3b8;
+  border-radius:6px; padding:2px 6px;
+}
+.stream-line{
+  position:absolute; border-top:2px solid #67e8f9; pointer-events:none;
+}
+#toolbox .draggable.active{ outline:2px solid #4ade80; border-radius:6px; }
