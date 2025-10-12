@@ -1,18 +1,42 @@
-:root{--bg:#0b0f14;--card:#111826;--acc:#27e68b;--ink:#e8f0ff}
+:root{
+  --bg:#0b0f14;
+  --card:#111826;
+  --acc:#27e68b;
+  --ink:#e8f0ff;
+  --ink-dim:#cbd5e1;
+  --line:#3b4a63;
+}
+
 *{box-sizing:border-box}
-body{margin:0;background:linear-gradient(180deg,#05070b,#0b0f14 40%,#0b1320);color:var(--ink);font:16px/1.45 "Poppins",system-ui}
+body{
+  margin:0;
+  background:linear-gradient(180deg,#05070b,#0b0f14 40%,#0b1320);
+  color:var(--ink);
+  font:16px/1.45 "Poppins",system-ui;
+}
 header{padding:24px 16px;text-align:center}
 h1{margin:0 0 4px;font-size:28px}
 main{max-width:980px;margin:0 auto;padding:0 16px 48px}
-.card{background:var(--card);border:1px solid #182133;border-radius:14px;padding:16px;margin:16px 0;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+
+.card{
+  background:var(--card);
+  border:1px solid #182133;
+  border-radius:14px;
+  padding:16px;
+  margin:16px 0;
+  box-shadow:0 10px 30px rgba(0,0,0,.25)
+}
 h2{margin:8px 0 12px;font-size:20px}
 h3{margin:10px 0 8px;font-size:16px;color:#cfe6ff}
 label{display:block;margin:10px 0 4px;font-weight:600}
-input,select{width:100%;padding:10px;border-radius:10px;border:1px solid #243048;background:#0a121e;color:var(--ink)}
+input,select{
+  width:100%;padding:10px;border-radius:10px;
+  border:1px solid #243048;background:#0a121e;color:var(--ink)
+}
 input::placeholder{color:#9db0c9}
 button{cursor:pointer;border:1px solid #2a354a;background:#162033;color:var(--ink);padding:10px 14px;border-radius:10px}
 button.primary{background:var(--acc);color:#08110f;border:none;font-weight:700}
-.row{display:flex;gap:10px;align-items:center}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .grid2{display:grid;grid-template-columns:1fr;gap:16px}
 @media(min-width:800px){.grid2{grid-template-columns:1fr 1fr}}
 .result{margin-top:12px;padding:10px;border-radius:10px;background:#0c1526;border:1px dashed #29354d}
@@ -21,40 +45,90 @@ th,td{border:1px solid #23314a;padding:8px;text-align:center}
 small{color:#a7bed6}
 .mt{margin-top:8px}
 .unit-panel[hidden]{display:none!important}
-/* draggable panel */
+
+/* ---------- Draggable properties panel ---------- */
 .panel{
-  position: fixed;           /* stays above canvas */
-  top: 80px; left: 60px;
-  width: 320px; max-width: 90vw; max-height: 80vh;
-  background: #fff; color:#111;
-  border: 1px solid #ccc; border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0,0,0,.15);
-  z-index: 1000; overflow: hidden;
+  position:fixed; top:80px; left:60px; width:320px; max-width:90vw; max-height:80vh;
+  background:#0b1320; color:var(--ink);
+  border:1px solid #23314a; border-radius:10px;
+  box-shadow:0 8px 24px rgba(0,0,0,.25);
+  z-index:1000; overflow:hidden;
 }
 .panel-header{
   display:flex; align-items:center; justify-content:space-between;
-  padding: 8px 10px; background:#0a0f1a; color:#fff; cursor: move;
+  padding:8px 10px; background:#091225; color:var(--ink); cursor:move;
+  border-bottom:1px solid #23314a;
 }
-.panel-header button{
-  background: transparent; border:0; color:#fff; font-size:16px; cursor:pointer;
+.panel-header button{background:transparent;border:0;color:var(--ink);font-size:16px;cursor:pointer}
+.panel-body{padding:10px;overflow:auto;max-height:calc(80vh - 44px)}
+.panel-body .row{gap:8px;margin-bottom:8px}
+.panel-body label{min-width:110px}
+.panel-body input,.panel-body select,.panel-body textarea{flex:1;min-width:120px}
+
+/* ---------- Flowsheet layout ---------- */
+/* container inside #panel-flowsheet holding toolbox + canvas */
+.fs-wrap{display:grid;gap:14px}
+@media(min-width:900px){
+  .fs-wrap{grid-template-columns:240px 1fr;}
 }
-.panel-body{ padding: 10px; overflow:auto; max-height: calc(80vh - 44px); }
-.panel-body .row{ display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
-.panel-body label{ min-width:110px; font-weight:600; }
-.panel-body input, .panel-body select, .panel-body textarea{
-  flex:1; min-width:120px;
+/* On phones: toolbox first, canvas full width below */
+@media(max-width:899px){
+  .fs-wrap{grid-template-columns:1fr}
 }
-#toolbox .draggable.active{
-  outline: 2px solid #4ade80;  /* green highlight */
-  border-radius: 6px;
+
+/* toolbox looks like a mini card list */
+#toolbox{
+  border:1px solid var(--line); border-radius:10px; padding:10px;
+  background:#0c1526;
 }
-.unit-block{ color:#0b0f19; }
+#toolbox h3{margin-top:6px}
+#toolbox .draggable{
+  user-select:none; padding:8px 10px; border:1px solid #243048; border-radius:8px;
+  background:#0a121e; margin:6px 0; color:var(--ink);
+}
+#toolbox .draggable.active{outline:2px solid #4ade80;border-radius:8px}
+
+/* canvas */
+#flowsheet{
+  position:relative;
+  border:1px dashed var(--line);
+  border-radius:12px;
+  background:#0a121e;
+  min-height:60vh;           /* more space by default */
+}
+@media(min-height:800px){
+  #flowsheet{min-height:70vh;}
+}
+
+/* wires layer (SVG) sits behind blocks and ignores pointer events */
+#fsWires{
+  position:absolute; inset:0; pointer-events:none; z-index:0;
+}
+
+/* unit blocks – high contrast text */
+.unit-block{
+  position:absolute;
+  background:#132034;
+  border:1px solid #2a3a55;
+  color:var(--ink);
+  border-radius:12px;
+  padding:6px 10px;
+  box-shadow:0 6px 18px rgba(0,0,0,.25);
+  touch-action:none;          /* smoother touch-drag */
+  z-index:1;                  /* above wires */
+}
+.unit-block b{color:var(--ink)}
+.unit-block small{color:var(--ink-dim)}
+.unit-block:focus-within,.unit-block:hover{outline:2px solid #38bdf8; outline-offset:2px}
+
+/* little output badge inside blocks */
 .unit-badge{
   position:absolute; right:6px; bottom:6px;
-  font-size:11px; background:#f1f5f9; border:1px solid #94a3b8;
-  border-radius:6px; padding:2px 6px;
+  font-size:11px; background:#f1f5f9; color:#0f172a;
+  border:1px solid #94a3b8; border-radius:6px; padding:2px 6px;
 }
+
+/* stream-line kept for backwards compatibility (not used with SVG) */
 .stream-line{
   position:absolute; border-top:2px solid #67e8f9; pointer-events:none;
 }
-#toolbox .draggable.active{ outline:2px solid #4ade80; border-radius:6px; }
