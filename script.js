@@ -831,6 +831,269 @@ function solveLinear(A,b){
    - Right (🧮): compute that block only & show Outputs popup
    It uses window.flowsheetUnits to read/store per-block parameters.
 */
+
+/* ===================== Block I/O popups: Inputs (⚙️) / Outputs (🧮) ===================== */
+(() => {
+  // --- tiny safe helpers (won't clash with your globals) ---
+  const _byId = (id)=> document.getElementById(id);
+  const _qs   = (sel, root=document)=> root.querySelector(sel);
+  const _all  = (sel, root=document)=> Array.from(root.querySelectorAll(sel));
+
+  // Read/write a unit object from your global store
+  function _fsGetUnit(uid){
+    return (window.flowsheetUnits||[]).find(u=>u.id===uid);
+  }
+
+  // Ensure there’s a single floating panel element
+  function ensurePanel(){
+    let p=_byId('ioPanel');
+    if(!p){
+      p=document.createElement('div');
+      p.id='ioPanel';
+      p.style.cssText='position:fixed;inset:auto 12px 12px auto;max-width:min(92vw,420px);'+
+                      'background:#0b1220;border:1px solid #1f2a44;border-radius:12px;'+
+                      'box-shadow:0 12px 40px rgba(0,0,0,.45);color:#eaf3ff;z-index:10000';
+      p.innerHTML = `
+        <div id="ioHead" style="display:flex;align-items:center;justify-content:space-between;
+             gap:8px;padding:10px 12px;border-bottom:1px solid #1f2a44;cursor:move">
+          <strong id="ioTitle">Bloc</strong>
+          <button id="ioClose" style="border:0;background:#1e293b;color:#eaf3ff;
+             padding:6px 10px;border-radius:8px">Fermer</button>
+        </div>
+        <div id="ioBody" style="padding:12px;max-height:60vh;overflow:auto"></div>
+      `;
+      document.body.appendChild(p);
+
+      // drag the panel
+      const head=_byId('ioHead');
+      let sx=0, sy=0, ox=0, oy=0, dragging=false;
+      const down = e=>{
+        dragging=true;
+        const r=p.getBoundingClientRect();
+        ox=r.left; oy=r.top;
+        sx=(e.touches?.[0]?.clientX??e.clientX);
+        sy=(e.touches?.[0]?.clientY??e.clientY);
+        window.addEventListener('pointermove', move, {passive:false});
+        window.addEventListener('pointerup', up, {passive:false});
+        e.preventDefault();
+      };
+      const move = e=>{
+        if(!dragging) return;
+        const x=(e.touches?.[0]?.clientX??e.clientX);
+        const y=(e.touches?.[0]?.clientY??e.clientY);
+        p.style.left = `${Math.max(8, Math.min(window.innerWidth-50, ox + x - sx))}px`;
+        p.style.top  = `${Math.max(8, Math.min(window.innerHeight-50, oy + y - sy))}px`;
+        p.style.right='auto'; p.style.bottom='auto';
+        e.preventDefault();
+      };
+      const up = ()=>{ dragging=false; window.removeEventListener('pointermove', move); };
+      head.addEventListener('pointerdown', down, {passive:false});
+      _byId('ioClose').addEventListener('click', ()=> p.remove());
+    }
+    return p;
+  }
+
+  // ---------------- Inputs (⚙️) ----------------
+  function openInputs(uid){
+    const u=_fsGetUnit(uid); if(!u) return;
+    const p=ensurePanel();
+    _qs('#ioTitle',p).textContent = `Entrées — ${u.type} (${u.id})`;
+
+    const comps = parseList(_byId('components')?.value||''); // uses your helper
+    const S = comps.length;
+
+    // Per-type tiny forms
+    let html = `<div style="display:grid;gap:10px">`;
+    html += `<div class="row"><label style="min-width:110px">Nom</label>
+             <input id="u_name_${uid}" value="${u.name??''}" placeholder="ex: ${u.type}-1"></div>`;
+
+    if (u.type==='feed'){
+      const F = u.params?.F??'';
+      const x = (u.params?.x || Array(S).fill(0)).slice(0,S);
+      html += `<div class="row"><label>F (débit)</label>
+               <input id="u_F_${uid}" type="number" step="any" value="${F}"></div>`;
+      html += `<div><b>Fractions (sommation=1)</b>${comps.map((c,i)=>
+               `<div class="row"><label style="min-width:110px">${c}</label>
+               <input id="u_x_${uid}_${i}" type="number" step="any" value="${x[i]??0}"></div>`).join('')}</div>`;
+    }
+    else if (u.type==='mixer'){
+      html += `<small>Pas de paramètres — le mélange est calculé à partir des entrées.</small>`;
+    }
+    else if (u.type==='splitter'){
+      const nOut = parseInt(u.params?.nOut||2,10);
+      const phi  = (u.params?.phi || Array(nOut).fill(0)).slice(0,nOut);
+      html += `<div class="row"><label>Sorties n</label>
+               <input id="u_nOut_${uid}" type="number" min="2" step="1" value="${nOut}"></div>`;
+      html += phi.map((v,i)=>`<div class="row"><label>φ_${i+1}</label>
+               <input id="u_phi_${uid}_${i}" type="number" step="any" value="${v}"></div>`).join('');
+      html += `<small>φ seront normalisées pour sommer à 1.</small>`;
+    }
+    else if (u.type==='binary-sep'){
+      const RA = u.params?.RA ?? '';
+      html += `<div class="row"><label>Récupération R_A</label>
+               <input id="u_RA_${uid}" type="number" step="any" value="${RA}" placeholder="0–1"></div>
+               <small>On lira F et z_A depuis le flux entrant (comps[0] = A).</small>`;
+    }
+    else if (u.type==='rxn-simple'){
+      const xi = u.params?.xi ?? '';
+      const nu = (u.params?.nu || Array(S).fill(0)).slice(0,S);
+      html += `<div class="row"><label>ξ</label>
+               <input id="u_xi_${uid}" type="number" step="any" value="${xi}"></div>`;
+      html += `<div><b>ν (par composant)</b>${comps.map((c,i)=>
+               `<div class="row"><label style="min-width:110px">ν_${c}</label>
+               <input id="u_nu_${uid}_${i}" type="number" step="any" value="${nu[i]??0}"></div>`).join('')}</div>`;
+    }
+    else if (u.type==='rxn-multi'){
+      const R  = parseInt(u.params?.R||2,10);
+      const NU = u.params?.NU || Array.from({length:R},()=>Array(S).fill(0));
+      const xi = (u.params?.xi || Array(R).fill(0)).slice(0,R);
+      html += `<div class="row"><label>R (réactions)</label>
+               <input id="u_R_${uid}" type="number" min="1" step="1" value="${R}"></div>`;
+      html += `<div><b>ν (R×S)</b></div>`;
+      for(let k=0;k<R;k++){
+        html += `<div style="display:flex;gap:6px;flex-wrap:wrap"><span style="min-width:34px">r${k+1}</span>`+
+          comps.map((c,j)=>`<input style="width:86px" id="u_nu_${uid}_${k}_${j}" type="number" step="any" value="${NU[k]?.[j]??0}" title="ν r${k+1}, ${c}">`).join('')+
+        `</div>`;
+      }
+      html += `<div><b>ξ_k</b></div>`+
+              xi.map((v,k)=>`<div class="row"><label>ξ_${k+1}</label>
+              <input id="u_xik_${uid}_${k}" type="number" step="any" value="${v}"></div>`).join('');
+    }
+    else if (u.type==='sink'){
+      html += `<small>Pas de paramètres — le sink affiche le flux entrant.</small>`;
+    }
+
+    html += `<div class="row" style="justify-content:flex-end;margin-top:6px">
+               <button id="u_save_${uid}" class="primary">Enregistrer</button>
+             </div>`;
+    _qs('#ioBody',p).innerHTML = html;
+
+    // Save handler
+    _byId(`u_save_${uid}`).addEventListener('click', ()=>{
+      const nameEl=_byId(`u_name_${uid}`); if(nameEl) u.name = nameEl.value;
+      u.params = u.params || {};
+      if (u.type==='feed'){
+        u.params.F = parseFloat(_byId(`u_F_${uid}`).value||'0');
+        const xs = comps.map((_,i)=> parseFloat(_byId(`u_x_${uid}_${i}`).value||'0'));
+        u.params.x = xs;
+      } else if (u.type==='splitter'){
+        const nOut = parseInt(_byId(`u_nOut_${uid}`).value||'2',10);
+        const phi  = Array.from({length:nOut}, (_,i)=> parseFloat((_byId(`u_phi_${uid}_${i}`)||{}).value||'0'));
+        u.params.nOut = nOut; u.params.phi = phi;
+      } else if (u.type==='binary-sep'){
+        u.params.RA = parseFloat(_byId(`u_RA_${uid}`).value||'0');
+      } else if (u.type==='rxn-simple'){
+        u.params.xi = parseFloat(_byId(`u_xi_${uid}`).value||'0');
+        u.params.nu = comps.map((_,i)=> parseFloat(_byId(`u_nu_${uid}_${i}`).value||'0'));
+      } else if (u.type==='rxn-multi'){
+        const R = parseInt(_byId(`u_R_${uid}`).value||'1',10);
+        const NU = Array.from({length:R}, (_,k)=> comps.map((_,j)=> parseFloat((_byId(`u_nu_${uid}_${k}_${j}`)||{}).value||'0')));
+        const xi = Array.from({length:R}, (_,k)=> parseFloat((_byId(`u_xik_${uid}_${k}`)||{}).value||'0'));
+        u.params.R = R; u.params.NU = NU; u.params.xi = xi;
+      }
+      p.remove();
+      // also update the title on the block
+      const blk = document.querySelector(`.unit-block[data-uid="${uid}"]`);
+      if (blk) blk.querySelector('.title-text')?.replaceChildren(document.createTextNode(u.name||u.type));
+    });
+  }
+
+  // ---------------- Outputs (🧮) ----------------
+  function openOutputs(uid){
+    // If no fresh results, run once
+    if (!window._fs_last || !window._fs_last.results){
+      const runBtn = _byId('fsRun');
+      runBtn?.click?.();
+    }
+    const last = window._fs_last||{};
+    const res  = last.results || {};
+    const arr  = res[uid];
+    const comps = last.comps || parseList(_byId('components')?.value||'');
+    const out  = Array.isArray(arr) ? arr[0] : null;
+
+    const p=ensurePanel();
+    _qs('#ioTitle',p).textContent = `Sorties — ${uid}`;
+    if (!out){
+      _qs('#ioBody',p).innerHTML = `<p>Aucun résultat disponible pour ce bloc. Relance le flowsheet.</p>`;
+      return;
+    }
+    const lines = out.x.map((v,i)=> `<tr><td>${comps[i]}</td><td>${v.toFixed(6)}</td><td>${(out.F*v).toFixed(6)}</td></tr>`).join('');
+    _qs('#ioBody',p).innerHTML = `
+      <p><b>F = ${out.F.toFixed(6)}</b></p>
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr><th>Comp.</th><th>Fraction</th><th>Débit partiel</th></tr></thead>
+        <tbody>${lines}</tbody>
+      </table>
+    `;
+  }
+
+  // Create the two buttons and bind pointer handlers
+  function decorateBlock(blk){
+    if (!blk || blk._decorated) return;
+    const uid = blk.dataset.uid;
+
+    // Title wrapper so we can update name later
+    if (!blk.querySelector('.title-text')){
+      const strong = blk.querySelector('b');
+      const wrap = document.createElement('span');
+      wrap.className = 'title-text';
+      if (strong) { wrap.textContent = strong.textContent; strong.replaceWith(wrap); }
+      else { wrap.textContent = blk.textContent.trim(); blk.innerHTML=''; blk.appendChild(wrap); }
+    }
+
+    const mkBtn = (label, title, onTap)=>{
+      const btn = document.createElement('button');
+      btn.className = 'mini-io-btn';
+      btn.type = 'button';
+      btn.innerText = label;
+      btn.title = title;
+      btn.style.cssText = 'position:absolute;bottom:6px;padding:4px 8px;border-radius:8px;'+
+                          'border:1px solid #2b3a55;background:#111a2b;color:#eaf3ff';
+      const handler = (e)=>{ e.stopPropagation(); onTap(); };
+      btn.addEventListener('pointerup', handler, {passive:true});
+      btn.addEventListener('click', handler);
+      return btn;
+    };
+
+    // left ⚙️
+    const left = mkBtn('⚙️','Entrées', ()=> openInputs(uid));
+    left.style.left = '6px';
+    // right 🧮
+    const right = mkBtn('🧮','Sorties', ()=> openOutputs(uid));
+    right.style.right = '6px';
+
+    // ensure space for buttons
+    blk.style.position = 'absolute';
+    blk.style.paddingBottom = '30px';
+
+    // add once
+    blk.appendChild(left);
+    blk.appendChild(right);
+    blk._decorated = true;
+  }
+
+  // Decorate blocks that already exist
+  _all('#flowsheet .unit-block').forEach(decorateBlock);
+
+  // Decorate any new blocks added later
+  const fs = _byId('flowsheet');
+  if (fs){
+    const mo = new MutationObserver(muts=>{
+      muts.forEach(m=>{
+        m.addedNodes.forEach(node=>{
+          if (node.nodeType===1){
+            if (node.classList?.contains('unit-block')) decorateBlock(node);
+            node.querySelectorAll?.('.unit-block')?.forEach(decorateBlock);
+          }
+        });
+      });
+    });
+    mo.observe(fs, {childList:true, subtree:true});
+  }
+
+  // Expose for quick manual testing
+  window._ioDebug = { openInputs, openOutputs };
+})();
 /* ================== Block I/O popups (wire left/right buttons) ================== */
 
 /* small helpers (safe if already defined) */
