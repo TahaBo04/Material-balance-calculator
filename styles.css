@@ -116,7 +116,29 @@ small{color:#a7bed6}
   text-align: center;
   font-size: 14px;            /* was 13px */
   line-height: 1.25;
+  border:2px solid #2f3c55;
+  background:#0f1c30;
+  box-shadow:0 10px 24px rgba(0,0,0,.35);
   border-radius: 14px;
+}
+
+/* subtle inner dashed outline to “delimit” the content area */
+.unit-block::before{
+  content:"";
+  position:absolute;
+  inset:6px;                         /* inset frame */
+  border:1px dashed rgba(148,163,184,.35);
+  border-radius:10px;
+  pointer-events:none;
+}
+
+/* when a block is active/selected (e.g., during connect mode) */
+.unit-block.is-source,
+.unit-block.is-target,
+.unit-block:focus-within,
+.unit-block:hover{
+  outline:3px solid #38bdf8;
+  outline-offset:2px;
 }
 .unit-block b{
   display:block;
