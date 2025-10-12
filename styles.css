@@ -1,179 +1,122 @@
-:root{
-  --bg:#0b0f14;
-  --card:#111826;
-  --acc:#27e68b;
-  --ink:#e8f0ff;
-  --ink-dim:#cbd5e1;
-  --line:#3b4a63;
+/* ===== Flowsheet visual polish & layout balance ===== */
+
+/* Center the header and add breathing room */
+header {
+  padding: 28px 16px 12px;
+  text-align: center;
+}
+header h1 {
+  font-size: 32px;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
 }
 
-*{box-sizing:border-box}
-body{
-  margin:0;
-  background:linear-gradient(180deg,#05070b,#0b0f14 40%,#0b1320);
-  color:var(--ink);
-  font:16px/1.45 "Poppins",system-ui;
+/* Make the flowsheet area dominant */
+.fs-wrap {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: 240px 1fr;
+  align-items: start;
+  margin-top: 18px;
 }
-header{padding:24px 16px;text-align:center}
-h1{margin:0 0 4px;font-size:28px}
-main{max-width:980px;margin:0 auto;padding:0 16px 48px}
-
-.card{
-  background:var(--card);
-  border:1px solid #182133;
-  border-radius:14px;
-  padding:16px;
-  margin:16px 0;
-  box-shadow:0 10px 30px rgba(0,0,0,.25)
-}
-h2{margin:8px 0 12px;font-size:20px}
-h3{margin:10px 0 8px;font-size:16px;color:#cfe6ff}
-label{display:block;margin:10px 0 4px;font-weight:600}
-input,select{
-  width:100%;padding:10px;border-radius:10px;
-  border:1px solid #243048;background:#0a121e;color:var(--ink)
-}
-input::placeholder{color:#9db0c9}
-button{cursor:pointer;border:1px solid #2a354a;background:#162033;color:var(--ink);padding:10px 14px;border-radius:10px}
-button.primary{background:var(--acc);color:#08110f;border:none;font-weight:700}
-.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.grid2{display:grid;grid-template-columns:1fr;gap:16px}
-@media(min-width:800px){.grid2{grid-template-columns:1fr 1fr}}
-.result{margin-top:12px;padding:10px;border-radius:10px;background:#0c1526;border:1px dashed #29354d}
-table{width:100%;border-collapse:collapse;margin-top:10px}
-th,td{border:1px solid #23314a;padding:8px;text-align:center}
-small{color:#a7bed6}
-.mt{margin-top:8px}
-.unit-panel[hidden]{display:none!important}
-
-/* ---------- Draggable properties panel ---------- */
-.panel{
-  position:fixed; top:80px; left:60px; width:320px; max-width:90vw; max-height:80vh;
-  background:#0b1320; color:var(--ink);
-  border:1px solid #23314a; border-radius:10px;
-  box-shadow:0 8px 24px rgba(0,0,0,.25);
-  z-index:1000; overflow:hidden;
-}
-.panel-header{
-  display:flex; align-items:center; justify-content:space-between;
-  padding:8px 10px; background:#091225; color:var(--ink); cursor:move;
-  border-bottom:1px solid #23314a;
-}
-.panel-header button{background:transparent;border:0;color:var(--ink);font-size:16px;cursor:pointer}
-.panel-body{padding:10px;overflow:auto;max-height:calc(80vh - 44px)}
-.panel-body .row{gap:8px;margin-bottom:8px}
-.panel-body label{min-width:110px}
-.panel-body input,.panel-body select,.panel-body textarea{flex:1;min-width:120px}
-
-/* ---------- Flowsheet layout ---------- */
-/* container inside #panel-flowsheet holding toolbox + canvas */
-.fs-wrap{display:grid;gap:14px}
-@media(min-width:900px){
-  .fs-wrap{grid-template-columns:240px 1fr;}
-}
-/* On phones: toolbox first, canvas full width below */
-@media(max-width:899px){
-  .fs-wrap{grid-template-columns:1fr}
+@media (max-width: 900px) {
+  .fs-wrap {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
 }
 
-/* toolbox looks like a mini card list */
-#toolbox{
-  border:1px solid var(--line); border-radius:10px; padding:10px;
-  background:#0c1526;
+/* Toolbox panel spacing */
+#toolbox {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #0c1526;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.25);
 }
-#toolbox h3{margin-top:6px}
-#toolbox .draggable{
-  user-select:none; padding:8px 10px; border:1px solid #243048; border-radius:8px;
-  background:#0a121e; margin:6px 0; color:var(--ink);
+#toolbox .draggable {
+  padding: 10px 12px;
+  font-size: 15px;
+  border-radius: 10px;
+  margin: 8px 0;
+  transition: all 0.2s ease;
 }
-#toolbox .draggable.active{outline:2px solid #4ade80;border-radius:8px}
-
-/* canvas */
-#flowsheet{
-  position:relative;
-  border:1px dashed var(--line);
-  border-radius:12px;
-  background:#0a121e;
-  min-height:60vh;           /* more space by default */
-}
-@media(min-height:800px){
-  #flowsheet{min-height:70vh;}
+#toolbox .draggable:hover {
+  background: #152033;
+  transform: scale(1.03);
 }
 
-/* wires layer (SVG) sits behind blocks and ignores pointer events */
-#fsWires{
-  position:absolute; inset:0; pointer-events:none; z-index:0;
+/* Canvas: more height, softer border, subtle shadow */
+#flowsheet {
+  position: relative;
+  border: 1.5px dashed #31415e;
+  border-radius: 14px;
+  background: #0a121e;
+  min-height: 78vh;
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.25);
+  padding: 10px;
+}
+@media (min-height: 900px) {
+  #flowsheet {
+    min-height: 85vh;
+  }
 }
 
-/* unit blocks – high contrast text */
-.unit-block{
-  position:absolute;
-  background:#132034;
-  border:1px solid #2a3a55;
-  color:var(--ink);
-  border-radius:12px;
-  padding:6px 10px;
-  box-shadow:0 6px 18px rgba(0,0,0,.25);
-  touch-action:none;          /* smoother touch-drag */
-  z-index:1;                  /* above wires */
-}
-.unit-block b{color:var(--ink)}
-.unit-block small{color:var(--ink-dim)}
-.unit-block:focus-within,.unit-block:hover{outline:2px solid #38bdf8; outline-offset:2px}
-
-/* little output badge inside blocks */
-.unit-badge{
-  position:absolute; right:6px; bottom:6px;
-  font-size:11px; background:#f1f5f9; color:#0f172a;
-  border:1px solid #94a3b8; border-radius:6px; padding:2px 6px;
-}
-
-/* stream-line kept for backwards compatibility (not used with SVG) */
-.stream-line{
-  position:absolute; border-top:2px solid #67e8f9; pointer-events:none;
-}
-
-/* ======= Input / Output buttons on flowsheet blocks ======= */
+/* Larger, clean unit blocks */
 .unit-block {
   position: absolute;
   background: #1b2433;
   border: 1px solid #2c3b52;
-  border-radius: 10px;
+  border-radius: 14px;
   color: #ffffff;
   text-align: center;
-  padding: 8px 12px;
+  padding: 14px 16px;
+  font-size: 15px;
+  min-width: 150px;
+  min-height: 110px;
+  box-shadow: 0 6px 14px rgba(0,0,0,0.4);
+  transition: transform 0.2s ease;
+}
+.unit-block:hover {
+  transform: scale(1.04);
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+}
+.unit-block b {
+  display: block;
+  font-size: 17px;
+  margin-bottom: 6px;
+}
+.unit-block small {
+  opacity: 0.9;
   font-size: 13px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
 }
 
-/* The small buttons on each side */
+/* Bigger I/O buttons */
 .unit-block button.io-btn {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  width: 22px;
-  height: 22px;
+  width: 30px;
+  height: 30px;
   border: none;
   border-radius: 50%;
   cursor: pointer;
-  font-size: 14px;
-  line-height: 22px;
+  font-size: 18px;
   color: #fff;
   background: var(--acc);
-  box-shadow: 0 0 6px var(--acc);
-  opacity: 0.85;
-  transition: 0.2s;
+  box-shadow: 0 0 10px var(--acc);
+  opacity: 0.9;
+  transition: transform 0.2s, opacity 0.2s;
 }
-
 .unit-block button.io-btn:hover {
+  transform: translateY(-50%) scale(1.12);
   opacity: 1;
-  transform: translateY(-50%) scale(1.1);
 }
+.unit-block button.io-left { left: -38px; }
+.unit-block button.io-right { right: -38px; }
 
-.unit-block button.io-left { left: -28px; }   /* ⚙️ button */
-.unit-block button.io-right { right: -28px; } /* 🧮 button */
-
-/* Popup styling for input/output forms */
+/* Popups (Inputs / Outputs) */
 .io-popup {
   position: fixed;
   top: 50%;
@@ -182,23 +125,27 @@ small{color:#a7bed6}
   background: #111827;
   color: #e8f0ff;
   border: 1px solid #334155;
-  border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  border-radius: 14px;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.55);
   z-index: 2000;
-  width: 320px;
-  max-width: 90vw;
-  padding: 20px;
+  width: 340px;
+  max-width: 92vw;
+  padding: 22px;
   display: none;
 }
-.io-popup h3 { margin-top: 0; color: var(--acc); font-size: 18px; }
+.io-popup h3 {
+  margin-top: 0;
+  color: var(--acc);
+  font-size: 19px;
+}
 .io-popup input, .io-popup textarea {
   width: 100%;
-  padding: 8px;
+  padding: 10px;
   border-radius: 8px;
   border: 1px solid #334155;
   background: #0a121e;
   color: #e8f0ff;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 .io-popup button.close {
   position: absolute;
@@ -207,16 +154,36 @@ small{color:#a7bed6}
   background: transparent;
   color: #fff;
   border: none;
-  font-size: 18px;
+  font-size: 20px;
   cursor: pointer;
 }
 .io-popup button.save {
   background: var(--acc);
   color: #000;
   border: none;
-  padding: 8px 14px;
-  border-radius: 6px;
+  padding: 9px 16px;
+  border-radius: 8px;
   cursor: pointer;
   font-weight: 600;
-  margin-top: 10px;
+  margin-top: 12px;
+}
+
+/* Ensure wires remain visible below larger blocks */
+#fsWires {
+  z-index: 0;
+}
+.unit-block {
+  z-index: 2;
+}
+
+/* Mobile adaptation */
+@media (max-width: 500px) {
+  .unit-block {
+    min-width: 130px;
+    min-height: 100px;
+    padding: 12px;
+    font-size: 14px;
+  }
+  .unit-block button.io-left { left: -32px; }
+  .unit-block button.io-right { right: -32px; }
 }
