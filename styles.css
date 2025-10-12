@@ -132,3 +132,91 @@ small{color:#a7bed6}
 .stream-line{
   position:absolute; border-top:2px solid #67e8f9; pointer-events:none;
 }
+
+/* ======= Input / Output buttons on flowsheet blocks ======= */
+.unit-block {
+  position: absolute;
+  background: #1b2433;
+  border: 1px solid #2c3b52;
+  border-radius: 10px;
+  color: #ffffff;
+  text-align: center;
+  padding: 8px 12px;
+  font-size: 13px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+}
+
+/* The small buttons on each side */
+.unit-block button.io-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 22px;
+  color: #fff;
+  background: var(--acc);
+  box-shadow: 0 0 6px var(--acc);
+  opacity: 0.85;
+  transition: 0.2s;
+}
+
+.unit-block button.io-btn:hover {
+  opacity: 1;
+  transform: translateY(-50%) scale(1.1);
+}
+
+.unit-block button.io-left { left: -28px; }   /* ⚙️ button */
+.unit-block button.io-right { right: -28px; } /* 🧮 button */
+
+/* Popup styling for input/output forms */
+.io-popup {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: #111827;
+  color: #e8f0ff;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  z-index: 2000;
+  width: 320px;
+  max-width: 90vw;
+  padding: 20px;
+  display: none;
+}
+.io-popup h3 { margin-top: 0; color: var(--acc); font-size: 18px; }
+.io-popup input, .io-popup textarea {
+  width: 100%;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid #334155;
+  background: #0a121e;
+  color: #e8f0ff;
+  margin-bottom: 8px;
+}
+.io-popup button.close {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  background: transparent;
+  color: #fff;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+}
+.io-popup button.save {
+  background: var(--acc);
+  color: #000;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  margin-top: 10px;
+}
