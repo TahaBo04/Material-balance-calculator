@@ -816,6 +816,11 @@ function solveLinear(A,b){
       html += `<tr><td>${u.id}</td><td>${s? s.F.toFixed(3):"0.000"}</td><td>${compTxt}</td></tr>`;
     });
     html += `</tbody></table>`;
+    window._fs_last = {
+      comps,
+      // convert Map -> plain object of arrays
+      results: Object.fromEntries([...results.entries()])
+    };
 
     return {html};
   }
