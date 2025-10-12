@@ -826,6 +826,166 @@ function solveLinear(A,b){
    - Right (🧮): compute that block only & show Outputs popup
    It uses window.flowsheetUnits to read/store per-block parameters.
 */
+/* ================== Block I/O popups (wire left/right buttons) ================== */
+
+/* small helpers (safe if already defined) */
+const _byId = (id)=> document.getElementById(id);
+const _parseList = (str)=> (str||"").split(",").map(s=>s.trim()).filter(Boolean);
+const _normalize = (arr)=>{ const s = arr.reduce((a,b)=>a+(+b||0),0); return s>0 ? arr.map(v=>(+v||0)/s) : arr.map(()=>0); };
+
+/* find a flowsheet unit by uid (your flowsheet code stores this globally) */
+function _fsGetUnit(uid){
+  return (window.flowsheetUnits||[]).find(u=>u.id===uid);
+}
+
+/* --- popup factory ----------------------------------------------------------- */
+function _ensurePopup(id, title){
+  let el = _byId(id);
+  if (!el){
+    el = document.createElement("div");
+    el.id = id;
+    el.className = "io-popup";
+    el.innerHTML = `
+      <button class="close" title="Fermer">✕</button>
+      <h3></h3>
+      <div class="content"></div>
+    `;
+    document.body.appendChild(el);
+    el.querySelector(".close").onclick = ()=> el.style.display="none";
+  }
+  el.querySelector("h3").textContent = title || "";
+  el.style.display = "block";
+  return el;
+}
+
+/* --- INPUT (⚙️) -------------------------------------------------------------- */
+function openInputPanelFor(uid){
+  const u = _fsGetUnit(uid);
+  if(!u) return;
+  const comps = _parseList(_byId("components")?.value || "");
+
+  const pop = _ensurePopup("ioInputPopup", `Entrées — ${u.type} (${uid})`);
+  const box = pop.querySelector(".content");
+  let html = "";
+
+  if (u.type === "feed"){
+    const F = +u.params?.F || 0;
+    const x = (u.params?.x || Array(comps.length).fill(0)).slice(0, comps.length);
+    html += `<label>Débit total F</label><input id="in_F" type="number" step="any" value="${F}">`;
+    comps.forEach((c,i)=>{
+      html += `<label>x_${c}</label><input id="in_x_${i}" type="number" step="any" value="${x[i]||0}">`;
+    });
+    html += `<button class="save" id="in_save">Enregistrer</button>`;
+  } else if (u.type === "binary-sep"){
+    const RA = (u.params?.RA ?? "");
+    const D  = (u.params?.D ?? "");
+    const xD = (u.params?.xD ?? "");
+    const B  = (u.params?.B ?? "");
+    const xB = (u.params?.xB ?? "");
+    html += `
+      <label>Récupération R_A (0–1)</label><input id="in_RA" type="number" step="any" value="${RA}">
+      <small>Donne UNE des quatre valeurs ci-dessous (laisse les autres vides)</small>
+      <label>D</label><input id="in_D" type="number" step="any" value="${D}">
+      <label>xD_A</label><input id="in_xD" type="number" step="any" value="${xD}">
+      <label>B</label><input id="in_B" type="number" step="any" value="${B}">
+      <label>xB_A</label><input id="in_xB" type="number" step="any" value="${xB}">
+      <button class="save" id="in_save">Enregistrer</button>
+    `;
+  } else if (u.type === "splitter"){
+    const nOut = +u.params?.nOut || 2;
+    const phi = (u.params?.phi || Array(nOut).fill(0)).slice(0,nOut);
+    html += `<label>Nombre de sorties n</label><input id="in_nOut" type="number" min="2" step="1" value="${nOut}">`;
+    for(let i=0;i<nOut;i++){
+      html += `<label>φ_${i+1}</label><input id="in_phi_${i}" type="number" step="any" value="${phi[i]||0}">`;
+    }
+    html += `<button class="save" id="in_save">Enregistrer</button>`;
+  } else if (u.type === "mixer"){
+    const nIn = +u.params?.nIn || (_byId("mixCount")? +_byId("mixCount").value : 2);
+    html += `<label>Nombre de feeds n</label><input id="in_nIn" type="number" min="2" step="1" value="${nIn}">`;
+    html += `<small>Le mélange utilise directement les flux entrants reliés.</small>`;
+    html += `<button class="save" id="in_save">Enregistrer</button>`;
+  } else {
+    html += `<p>Formulaire dédié bientôt — pour l’instant, connecte les blocs et exécute le flowsheet.</p>`;
+  }
+
+  box.innerHTML = html;
+
+  const save = box.querySelector("#in_save");
+  if (save){
+    save.onclick = ()=>{
+      u.params = u.params || {};
+      if (u.type === "feed"){
+        u.params.F = +_byId("in_F").value || 0;
+        const xs = comps.map((_,i)=> +_byId(`in_x_${i}`).value || 0);
+        u.params.x = _normalize(xs);
+      } else if (u.type === "binary-sep"){
+        u.params.RA = +_byId("in_RA").value;
+        u.params.D  = _byId("in_D").value ? +_byId("in_D").value : undefined;
+        u.params.xD = _byId("in_xD").value ? +_byId("in_xD").value : undefined;
+        u.params.B  = _byId("in_B").value ? +_byId("in_B").value : undefined;
+        u.params.xB = _byId("in_xB").value ? +_byId("in_xB").value : undefined;
+      } else if (u.type === "splitter"){
+        const n = Math.max(2, +_byId("in_nOut").value || 2);
+        const phi = [];
+        for(let i=0;i<n;i++) phi.push(+(_byId(`in_phi_${i}`)?.value || 0));
+        u.params.nOut = n;
+        u.params.phi  = _normalize(phi);
+      } else if (u.type === "mixer"){
+        u.params.nIn = Math.max(2, +_byId("in_nIn").value || 2);
+      }
+      pop.style.display = "none";
+    };
+  }
+}
+
+/* --- OUTPUT (🧮) ------------------------------------------------------------- */
+function openOutputPanelFor(uid){
+  const u = _fsGetUnit(uid);
+  if(!u) return;
+
+  // Needs the last solver result. Make sure you expose it from runFlowsheet (see note below).
+  const last = window._fs_last || null;
+
+  const pop = _ensurePopup("ioOutputPopup", `Sorties — ${u.type} (${uid})`);
+  const box = pop.querySelector(".content");
+
+  if (!last){
+    box.innerHTML = `<p>Pas de résultats disponibles. Clique <b>“Exécuter le flowsheet”</b> puis réessaie.</p>`;
+    return;
+  }
+
+  const comps = last.comps || [];
+  const res   = last.results?.[uid]; // array of outlet streams for this unit
+
+  if (!res || !res.length){
+    box.innerHTML = `<p>Aucune sortie trouvée pour ce bloc. Vérifie la connectivité et relance le calcul.</p>`;
+    return;
+  }
+
+  let html = "";
+  res.forEach((s,idx)=>{
+    html += `<h4>Courant ${idx+1}</h4>
+             <p><b>F = ${(+s.F||0).toFixed(6)}</b></p>
+             <table><thead><tr><th>Comp.</th><th>x</th><th>F·x</th></tr></thead><tbody>`;
+    comps.forEach((c,i)=>{
+      const xi = +s.x[i]||0;
+      html += `<tr><td>${c}</td><td>${xi.toFixed(6)}</td><td>${(xi*(+s.F||0)).toFixed(6)}</td></tr>`;
+    });
+    html += `</tbody></table>`;
+  });
+  box.innerHTML = html;
+}
+
+/* --- event-delegation: catch taps on the tiny buttons inside blocks ------------ */
+document.addEventListener("click", (e)=>{
+  const btn = e.target.closest(".io-left, .io-right");
+  if (!btn) return;
+  const blk = btn.closest(".unit-block");
+  if (!blk) return;
+  const uid = blk.dataset.uid;
+  if (btn.classList.contains("io-left")) openInputPanelFor(uid);
+  else openOutputPanelFor(uid);
+});
 (() => {
   /* ---------- Helpers (self-contained) ---------- */
   const byId = (id)=> document.getElementById(id);
