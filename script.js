@@ -820,3 +820,365 @@ function solveLinear(A,b){
     return {html};
   }
 })();
+/* ====================== BLOCK-BY-BLOCK INPUT/OUTPUT POPUPS ====================== */
+/* This module decorates every .unit-block with two small buttons:
+   - Left (⚙️): open Inputs popup for that block only
+   - Right (🧮): compute that block only & show Outputs popup
+   It uses window.flowsheetUnits to read/store per-block parameters.
+*/
+(() => {
+  /* ---------- Helpers (self-contained) ---------- */
+  const byId = (id)=> document.getElementById(id);
+  const $ = (q)=> document.querySelector(q);
+  const $$ = (q)=> Array.from(document.querySelectorAll(q));
+  const sum = (arr)=> arr.reduce((a,b)=>a+(+b||0),0);
+  const clamp01 = (x)=> {
+    const v = +x; return isFinite(v) ? Math.max(0, Math.min(1, v)) : 0;
+  };
+  const parseList = (str)=> (str||"").split(",").map(s=>s.trim()).filter(Boolean);
+  const parseCSVfloats = (str)=> (str||'').split(',').map(s=>parseFloat(s.trim())).filter(v=>!isNaN(v));
+  const padTo = (arr, len, fill=0)=> { const a = (arr||[]).slice(0,len); while(a.length<len) a.push(fill); return a; };
+  const normalizeToLen = (arr, len)=> { const a = padTo(arr,len,0); const s=sum(a); return s>0? a.map(v=>v/s) : a; };
+  const getComps = ()=> parseList(byId("components")?.value || "");
+  const getUnit = (uid)=> (window.flowsheetUnits||[]).find(u=>u.id===uid);
+
+  function ensurePanel(id, titleText){
+    let panel = byId(id);
+    if (!panel){
+      panel = document.createElement('div');
+      panel.id = id;
+      panel.className = 'panel';
+      panel.innerHTML = `
+        <div class="panel-header">
+          <span class="panel-title">${titleText||''}</span>
+          <button class="panel-close" title="Fermer">✕</button>
+        </div>
+        <div class="panel-body"></div>
+      `;
+      document.body.appendChild(panel);
+      panel.querySelector('.panel-close').onclick = ()=> panel.hidden = true;
+    }
+    panel.querySelector('.panel-title').textContent = titleText || '';
+    return panel;
+  }
+  function setBlockTitle(el, u){
+    let t = el.querySelector(".title");
+    if (!t){
+      t = document.createElement("div");
+      t.className = "title";
+      t.style.fontSize = "12px";
+      t.style.opacity = "0.9";
+      el.insertAdjacentElement("afterbegin", t);
+    }
+    t.innerHTML = `<b>${u.type}</b><br><small>${u.id}${u.name? " — "+u.name:""}</small>`;
+  }
+  function ensureBadge(el){
+    let badge = el.querySelector(".unit-badge");
+    if (!badge){
+      badge = document.createElement("div");
+      badge.className = "unit-badge";
+      el.appendChild(badge);
+    }
+    return badge;
+  }
+  function renderBlockIO(uid, stream, comps){
+    const blk = document.querySelector(`.unit-block[data-uid="${uid}"]`);
+    if (!blk) return;
+    let panel = blk.querySelector(".io");
+    if (!panel){
+      panel = document.createElement("div");
+      panel.className = "io";
+      Object.assign(panel.style, {
+        marginTop:"4px", fontSize:"11px", background:"rgba(15,23,42,.35)",
+        padding:"4px 6px", border:"1px solid rgba(148,163,184,.35)", borderRadius:"6px"
+      });
+      blk.appendChild(panel);
+    }
+    if (!stream){
+      panel.innerHTML = `<em>Aucun calcul</em>`;
+      return;
+    }
+    const compLine = (stream.x||[]).map((v,i)=> `${(comps[i]||"C"+(i+1))}:${(v||0).toFixed(3)}`).join(" · ");
+    panel.innerHTML = `F=${(stream.F||0).toFixed(3)}<br>${compLine}`;
+    const badge = ensureBadge(blk);
+    badge.textContent = `F=${(stream.F||0).toFixed(2)}`;
+  }
+
+  /* ---------- Inputs popup (per block) ---------- */
+  function openInputPanelFor(uid){
+    const u = getUnit(uid); if (!u) return;
+    const comps = getComps(); const S = comps.length;
+    u.params = u.params || {};
+
+    const panel = ensurePanel('blockInputPanel', `Entrées — ${u.type} (${u.id})`);
+    const body  = panel.querySelector('.panel-body');
+
+    // Generic stream fields for blocks that accept a single incoming stream
+    const streamFields = `
+      <div class="row"><label>F_in</label><input id="bi_Fin" type="number" step="any" value="${u.params.F_in??''}" placeholder="débit total"></div>
+      <div class="row"><label>x_in (CSV)</label><input id="bi_xin" type="text" value="${u.params.x_in? u.params.x_in.join(','):''}" placeholder="ex: ${S?('0.'.padEnd(2,'0')):''}...,${S?('0.'.padEnd(2,'0')):''}"></div>
+      <small>Astuce: colle ici le F et x du bloc amont que tu veux utiliser.</small>
+    `;
+
+    let html = `<div class="row"><label>Nom</label><input id="bi_name" value="${u.name||''}" placeholder="optionnel"></div>`;
+
+    if (u.type === "feed"){
+      html += `
+        <div class="row"><label>F</label><input id="bi_F" type="number" step="any" value="${u.params.F??''}"></div>
+        <div class="row"><label>x (CSV)</label><input id="bi_x" type="text" value="${u.params.x? u.params.x.join(','):''}" placeholder="ex: 0.4,0.6"></div>
+        <small>Somme des fractions normalisée automatiquement.</small>
+      `;
+    }
+    else if (u.type === "mixer"){
+      const n = u.params.n || 2;
+      html += `<div class="row"><label>Nombre de feeds n</label><input id="bi_nmix" type="number" min="2" step="1" value="${n}"></div>
+               <div id="bi_mixerFeeds"></div>
+               <small>Tu peux coller F et x de plusieurs blocs amont ici.</small>`;
+    }
+    else if (u.type === "splitter"){
+      html += streamFields + `
+        <div class="row"><label>φ (CSV)</label><input id="bi_phi" type="text" value="${u.params.phi? u.params.phi.join(','):''}" placeholder="ex: 0.3,0.7"></div>
+        <small>Somme normalisée.</small>
+      `;
+    }
+    else if (u.type === "binary-sep"){
+      html += streamFields + `
+        <div class="row"><label>Récupération R<sub>A</sub></label><input id="bi_RA" type="number" step="any" value="${u.params.RA??''}" placeholder="0–1"></div>
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <input id="bi_D"  type="number" step="any" placeholder="D (optionnel)" value="${u.params.D??''}">
+          <input id="bi_xD" type="number" step="any" placeholder="xD_A (0–1)" value="${u.params.xD??''}">
+          <input id="bi_B"  type="number" step="any" placeholder="B (optionnel)" value="${u.params.B??''}">
+          <input id="bi_xB" type="number" step="any" placeholder="xB_A (0–1)" value="${u.params.xB??''}">
+        </div>
+        <small>Donne au plus UNE des 4 specs (D, xD_A, B, xB_A).</small>
+      `;
+    }
+    else if (u.type === "rxn-simple"){
+      html += `
+        <div class="row"><label>N_in (CSV)</label><input id="bi_Nin" type="text" value="${u.params.Nin? u.params.Nin.join(','):''}" placeholder="ex: 2,1,0"></div>
+        <small>Ou utilise F_in & x_in ci-dessous pour déduire N_in = F_in * x_in</small>
+        ${streamFields}
+        <div class="row"><label>ν (CSV)</label><input id="bi_nu" type="text" value="${u.params.nu? u.params.nu.join(','):''}" placeholder="ex: -1,1,0"></div>
+        <div class="row"><label>ξ</label><input id="bi_xi" type="number" step="any" value="${u.params.xi??''}"></div>
+      `;
+    }
+    else {
+      html += `<small>Aucun paramètre spécifique pour ce type (ou à venir).</small>`;
+    }
+
+    html += `<div class="row" style="justify-content:flex-end"><button class="primary" id="bi_save">Enregistrer</button></div>`;
+    body.innerHTML = html;
+
+    // Build mixer feeds UI if needed
+    if (u.type === "mixer"){
+      const holder = byId("bi_mixerFeeds");
+      const nInput = byId("bi_nmix");
+      const renderFeeds = ()=>{
+        const n = Math.max(2, parseInt(nInput.value||"2",10));
+        u.params.mix = u.params.mix || Array.from({length:n}, ()=>({F:0,x:Array(S).fill(0)}));
+        if (u.params.mix.length !== n) u.params.mix = Array.from({length:n}, ( _,i)=> u.params.mix[i] || {F:0,x:Array(S).fill(0)});
+        let inner = "";
+        for(let i=0;i<n;i++){
+          inner += `
+            <div class="row"><label>F_${i+1}</label><input id="bi_mF_${i}" type="number" step="any" value="${u.params.mix[i].F??''}"></div>
+            <div class="row"><label>x_${i+1} (CSV)</label><input id="bi_mx_${i}" type="text" value="${u.params.mix[i].x? u.params.mix[i].x.join(','):''}" placeholder="ex: 0.5,0.5"></div>
+            <hr style="border:0;border-top:1px solid #23314a;width:100%;opacity:.6;margin:6px 0">
+          `;
+        }
+        holder.innerHTML = inner;
+      };
+      nInput.onchange = renderFeeds;
+      renderFeeds();
+    }
+
+    panel.hidden = false;
+
+    byId("bi_save").onclick = ()=>{
+      u.name = byId("bi_name").value.trim();
+      if (u.type === "feed"){
+        u.params.F = parseFloat(byId("bi_F").value)||0;
+        u.params.x = normalizeToLen(parseCSVfloats(byId("bi_x").value), S);
+      }
+      else if (u.type === "mixer"){
+        u.params.n = Math.max(2, parseInt(byId("bi_nmix").value||"2",10));
+        u.params.mix = u.params.mix || [];
+        for(let i=0;i<u.params.n;i++){
+          const F = parseFloat(byId(`bi_mF_${i}`).value)||0;
+          let x = normalizeToLen(parseCSVfloats(byId(`bi_mx_${i}`).value), S);
+          u.params.mix[i] = {F, x};
+        }
+      }
+      else if (u.type === "splitter"){
+        u.params.F_in = parseFloat(byId("bi_Fin").value)||0;
+        u.params.x_in = normalizeToLen(parseCSVfloats(byId("bi_xin").value), S);
+        let phi = parseCSVfloats(byId("bi_phi").value);
+        const sphi = sum(phi); if (sphi>0) phi = phi.map(v=>v/sphi);
+        u.params.phi = phi.length? phi : [1,0];
+      }
+      else if (u.type === "binary-sep"){
+        u.params.F_in = parseFloat(byId("bi_Fin").value)||0;
+        u.params.x_in = normalizeToLen(parseCSVfloats(byId("bi_xin").value), S);
+        u.params.RA  = clamp01(parseFloat(byId("bi_RA").value)||0);
+        ["D","xD","B","xB"].forEach(k=>{
+          const v = byId("bi_"+k).value;
+          u.params[k] = (v==="" ? undefined : parseFloat(v));
+        });
+      }
+      else if (u.type === "rxn-simple"){
+        let NinCSV = parseCSVfloats(byId("bi_Nin").value);
+        if (NinCSV.length){ u.params.Nin = padTo(NinCSV, S); }
+        u.params.F_in = parseFloat(byId("bi_Fin").value)||0;
+        u.params.x_in = normalizeToLen(parseCSVfloats(byId("bi_xin").value), S);
+        if (!u.params.Nin || !u.params.Nin.length){
+          u.params.Nin = u.params.x_in.map(v=> v * u.params.F_in);
+        }
+        u.params.nu = padTo(parseCSVfloats(byId("bi_nu").value), S);
+        u.params.xi = parseFloat(byId("bi_xi").value)||0;
+      }
+
+      // refresh block title
+      const blk = document.querySelector(`.unit-block[data-uid="${u.id}"]`);
+      if (blk) setBlockTitle(blk, u);
+
+      panel.hidden = true;
+    };
+  }
+
+  /* ---------- Compute only this block & show Outputs ---------- */
+  function computeSingleBlock(u, comps){
+    const S = comps.length;
+
+    if (u.type === "feed"){
+      const F = +u.params?.F || 0;
+      let x = normalizeToLen(u.params?.x||[], S);
+      return [{F, x, comps}];
+    }
+    if (u.type === "mixer"){
+      const mix = u.params?.mix || [];
+      const F = sum(mix.map(m=>m.F||0));
+      const numer = Array(S).fill(0);
+      mix.forEach(m=> comps.forEach((_,j)=> numer[j] += (m.F||0)*((m.x||[])[j]||0)));
+      const x = F>0 ? numer.map(v=>v/F) : Array(S).fill(0);
+      return [{F, x, comps}];
+    }
+    if (u.type === "splitter"){
+      const F = +u.params?.F_in || 0;
+      const x = normalizeToLen(u.params?.x_in||[], S);
+      let phi = (u.params?.phi||[]).slice();
+      const sphi = sum(phi); if (sphi>0) phi = phi.map(v=>v/sphi);
+      return phi.map(p => ({F: p*F, x: x.slice(), comps}));
+    }
+    if (u.type === "binary-sep"){
+      const F  = +u.params?.F_in || 0;
+      const x  = normalizeToLen(u.params?.x_in||[], S);
+      const zA = x[0]||0, RA = clamp01(+u.params?.RA||0);
+      const DxD = RA * F * zA;
+      let D, xD, B, xB;
+      const D_in  = u.params?.D, B_in = u.params?.B, xD_in = u.params?.xD, xB_in = u.params?.xB;
+
+      if (xB_in!==undefined){ xB=clamp01(+xB_in); const Ax_in_B = F*zA - DxD; B = Ax_in_B / (xB||1e-12); D = F - B; xD = D>0? DxD/D : 0; }
+      else if (B_in!==undefined){ B=+B_in; D=F-B; xD=D>0? DxD/D : 0; xB=B>0? (F*zA - DxD)/B : 0; }
+      else if (D_in!==undefined){ D=+D_in; B=F-D; xD=D>0? DxD/D : 0; xB=B>0? (F*zA - DxD)/B : 0; }
+      else if (xD_in!==undefined){ xD=clamp01(+xD_in); D=(xD>0? DxD/xD : 0); B=F-D; xB=B>0? (F*zA - DxD)/B : 0; }
+      else { D=0; B=F; xD=0; xB = B>0? (F*zA - DxD)/B : 0; }
+
+      const xDvec = [clamp01(xD), 1-clamp01(xD)];
+      const xBvec = [clamp01(xB), 1-clamp01(xB)];
+      return [{F:D, x:xDvec, comps}, {F:B, x:xBvec, comps}];
+    }
+    if (u.type === "rxn-simple"){
+      const Nin = padTo(u.params?.Nin||[], S).map(v=>+v||0);
+      const nu  = padTo(u.params?.nu||[], S);
+      const xi  = +u.params?.xi || 0;
+      const Nout = comps.map((_,j)=> (Nin[j]||0) + (nu[j]||0)*xi);
+      const Fout = sum(Nout);
+      const xout = Fout>0 ? Nout.map(v=>v/Fout) : Array(S).fill(0);
+      return [{F:Fout, x:xout, comps}];
+    }
+    return [];
+  }
+
+  function openOutputPanelFor(uid){
+    const u = getUnit(uid); if (!u) return;
+    const comps = getComps();
+    const outs = computeSingleBlock(u, comps);
+
+    const panel = ensurePanel('blockOutputPanel', `Sorties — ${u.type} (${u.id})`);
+    const body  = panel.querySelector('.panel-body');
+
+    if (!outs.length){ body.innerHTML = "<p>Aucune sortie calculée (vérifie les entrées).</p>"; panel.hidden=false; return; }
+
+    // render in block too (first outlet)
+    if (outs[0]) renderBlockIO(uid, outs[0], comps);
+
+    let html = "";
+    outs.forEach((s,idx)=>{
+      const compLine = (s.x||[]).map((v,i)=> `${(comps[i]||('C'+(i+1)))}:${(v||0).toFixed(4)}`).join(" · ");
+      html += `
+        <div class="result">
+          <b>Courant ${idx+1}</b><br>
+          F = ${s.F.toFixed(6)}<br>
+          ${compLine}
+        </div>
+      `;
+    });
+    html += `<small>Copie/colle F et x dans le bloc suivant (bouton Entrées à gauche).</small>`;
+    body.innerHTML = html;
+    panel.hidden = false;
+  }
+
+  /* ---------- Decorate blocks with left/right buttons (no changes to your flowsheet code) ---------- */
+  function decorateBlock(blk){
+    if (!blk || blk._decorated) return;
+    const uid = blk.dataset.uid;
+    // left button (Inputs)
+    const left = document.createElement("button");
+    left.className = "blk-btn blk-left";
+    left.title = "Entrées";
+    left.textContent = "⚙️";
+    left.addEventListener("click", (ev)=>{ ev.stopPropagation(); openInputPanelFor(uid); });
+    // right button (Outputs)
+    const right = document.createElement("button");
+    right.className = "blk-btn blk-right";
+    right.title = "Calculer & Sorties";
+    right.textContent = "🧮";
+    right.addEventListener("click", (ev)=>{ ev.stopPropagation(); openOutputPanelFor(uid); });
+
+    // title placeholder + io area if missing
+    setBlockTitle(blk, getUnit(uid) || {id:uid, type:blk.textContent.trim(), name:""});
+    let io = blk.querySelector(".io");
+    if (!io){
+      io = document.createElement("div");
+      io.className = "io";
+      Object.assign(io.style, {marginTop:"4px", fontSize:"11px", opacity:".9"});
+      blk.appendChild(io);
+    }
+
+    blk.appendChild(left);
+    blk.appendChild(right);
+    blk._decorated = true;
+  }
+
+  // Decorate existing blocks
+  $$("#flowsheet .unit-block").forEach(decorateBlock);
+
+  // Observe new blocks being added to #flowsheet
+  const fs = byId("flowsheet");
+  if (fs){
+    const mo = new MutationObserver((mutList)=>{
+      for (const m of mutList){
+        m.addedNodes.forEach(node=>{
+          if (node.nodeType===1){
+            if (node.classList?.contains("unit-block")) decorateBlock(node);
+            // In case a container is added with blocks inside
+            node.querySelectorAll?.(".unit-block")?.forEach(decorateBlock);
+          }
+        });
+      }
+    });
+    mo.observe(fs, {childList:true, subtree:true});
+  }
+
+  // Expose for debugging
+  window._fs_blockIO = { openInputPanelFor, openOutputPanelFor, computeSingleBlock };
+})();
