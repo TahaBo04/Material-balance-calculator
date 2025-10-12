@@ -66,16 +66,14 @@ function formatStream(F, x, comps, title){
 function applyComponents(){
   const comps = parseList(byId("components").value);
 
-  // Mixer n→1: initially build for n=2
-  byId("mixFeedsBox").innerHTML = ""; // will be built by button
+  // Mixer n→1
+  byId("mixFeedsBox").innerHTML = "";
   byId("mixCount").value = Math.max(2, parseInt(byId("mixCount").value||"2",10));
 
   // Splitter 1→n
   buildFracBox("xsBox", comps, "w_");
   byId("splitPhiBox").innerHTML = "";
   byId("splitCount").value = Math.max(2, parseInt(byId("splitCount").value||"2",10));
-
-  // Binary sep — nothing extra here
 
   // Simple reaction
   buildValueBox("NinBox", comps, "N_in_");
@@ -87,7 +85,6 @@ function applyComponents(){
                      <input type="number" step="any" id="nu_${c}" placeholder="négatif réactifs, positif produits">`;
     nuBox.appendChild(row);
   });
-  // dropdowns
   const keySel = byId("keyComp"); keySel.innerHTML="";
   const specSel= byId("specComp"); specSel.innerHTML="";
   comps.forEach(c=>{
@@ -303,7 +300,6 @@ byId("solveRxn")?.addEventListener("click", ()=>{
 });
 
 /***************** Multi-reaction *****************/
-// Build ν & ξ inputs
 byId("buildNu")?.addEventListener("click", ()=>{
   const comps = parseList(byId("components").value);
   const R = Math.max(1, parseInt(byId("Rcount").value || "1", 10));
@@ -326,8 +322,7 @@ byId("buildNu")?.addEventListener("click", ()=>{
   xiHtml += `</div>`;
   xiDiv.innerHTML = xiHtml;
 
-  // (re)build auto-ξ UI when checkbox toggles
-  buildAutoXiUI(); // first build if checkbox already on
+  buildAutoXiUI();
 });
 
 function matrixRank(A){
@@ -368,43 +363,33 @@ byId("solveRxnMulti")?.addEventListener("click", ()=>{
     byId("rxnMultiResult").innerHTML = msg; return;
   }
 
-  // try auto-ξ if requested and no ξ provided
   const auto = byId("autoXi")?.checked;
   let xi = Array.from({length:R}, (_,k)=> byId(`xi_${k}`)?.value ? parseFloat(byId(`xi_${k}`).value) : NaN);
 
   if (auto && xi.some(v=>isNaN(v))){
     const spec = readAutoSpecs(R, comps);
     if (spec.length===R){
-      // Solve A xi = b (R equations)
-      // Build equations: each spec row gives linear combo of xi
-      // Types: "nout" => Nout_j = Nin_j + Σ_k ν_kj ξ_k
-      //        "conv" => Xc = ξ * |ν_k,reactif| / Nin_reactif  -> ξ_k = Xc*Nin/|ν|
-      // We'll convert each spec to a row in A and b
       const A = Array.from({length:R},()=>Array(R).fill(0));
       const b = Array(R).fill(0);
       let rIdx=0;
       for(const s of spec){
         if (s.type==="nout"){
           const j = s.j;
-          // Nin_j + sum_k nu[k][j]*xi_k = s.value  -> sum_k nu[k][j]*xi_k = s.value - Nin_j
           for(let k=0;k<R;k++) A[rIdx][k] = NU[k][j];
           b[rIdx] = s.value - Nin[j];
           rIdx++;
         } else if (s.type==="conv"){
-          const k = s.k; // reaction index for which conversion given on its key reactant
+          const k = s.k;
           if (typeof s.nuKey!=="number" || s.nuKey>=0){ continue; }
-          // ξ_k = Xc * Nin_key / |ν_key|
           A[rIdx][k] = 1; b[rIdx] = s.value * s.NinKey / Math.abs(s.nuKey);
           rIdx++;
         }
       }
-      // Solve A xi = b by Gauss elimination
       const sol = solveLinear(A,b);
       if (sol.ok) xi = sol.x;
     }
   }
 
-  // If still NaN, treat missing as 0
   xi = xi.map(v=> isNaN(v)?0:v);
 
   const Nout = comps.map((_,j)=>{
@@ -428,7 +413,6 @@ byId("solveRxnMulti")?.addEventListener("click", ()=>{
   byId("rxnMultiResult").innerHTML = html;
 });
 
-// Auto-ξ UI and reading
 function buildAutoXiUI(){
   const autoEl = byId("autoXi");
   const box = byId("autoXiBox");
@@ -456,13 +440,9 @@ function buildAutoXiUI(){
     html += `<button class="primary mt" id="solveXiAuto">Résoudre ξ d'après mes specs</button>`;
     box.innerHTML = html;
 
-    byId("solveXiAuto").onclick = ()=>{
-      // trigger main solve (it will read specs)
-      byId("solveRxnMulti").click();
-    };
+    byId("solveXiAuto").onclick = ()=> byId("solveRxnMulti").click();
   });
 
-  // if already checked when ν gets rebuilt
   if (autoEl.checked) autoEl.dispatchEvent(new Event("change"));
 }
 function readAutoSpecs(R, comps){
@@ -477,7 +457,6 @@ function readAutoSpecs(R, comps){
       const j = comps.indexOf(comp);
       if (j>=0) specs.push({type, j, value: val});
     } else if (type==="conv"){
-      // conversion for reaction ridx; need key reactant in that reaction (use comp as key species)
       const j = comps.indexOf(comp);
       const nuKey = parseFloat(byId(`nu_${ridx}_${comp}`)?.value || "0");
       const NinKey= parseFloat(byId(`NinMultiBox_${comp}`)?.value || "0");
@@ -487,21 +466,16 @@ function readAutoSpecs(R, comps){
   return specs;
 }
 function solveLinear(A,b){
-  // simple Gauss-Jordan for square system
   const n=A.length; if(!n) return {ok:false};
-  // build augmented matrix
   const M = A.map((row,i)=> row.concat([b[i]]));
   const EPS=1e-12;
   let r=0;
   for(let c=0;c<n;c++){
-    // pivot
     let piv=r;
     for(let i=r;i<n;i++) if(Math.abs(M[i][c])>Math.abs(M[piv][c])) piv=i;
     if (Math.abs(M[piv][c])<EPS) continue;
     if (piv!==r){ const t=M[piv]; M[piv]=M[r]; M[r]=t; }
-    // normalize
     const pv = M[r][c]; for(let j=c;j<=n;j++) M[r][j]/=pv;
-    // eliminate
     for(let i=0;i<n;i++){
       if(i===r) continue;
       const f=M[i][c]; if(Math.abs(f)<EPS) continue;
@@ -512,44 +486,34 @@ function solveLinear(A,b){
   if (r<n) return {ok:false};
   const x = M.map(row=>row[n]);
   return {ok:true, x};
-}/* ===================== FLOWSHEET: full module ===================== */
-/* Safe shims for helpers (won't overwrite if you already defined them) */
-window.byId      = window.byId      || ((id)=>document.getElementById(id));
-window.parseList = window.parseList || (s => (s||"").split(",").map(t=>t.trim()).filter(Boolean));
-window.sum       = window.sum       || (a => a.reduce((x,y)=>x+(+y||0),0));
-window.clamp01   = window.clamp01   || (x => {const v=+x; return isFinite(v)? Math.max(0,Math.min(1,v)) : 0;});
-window.normalize = window.normalize || (arr => {const s = sum(arr); return s>0 ? arr.map(v=>(+v||0)/s) : arr.map(()=>0);});
+}
 
-/* Global stores */
-window.flowsheetUnits = window.flowsheetUnits || [];    // [{id,type,x,y,inputs,outputs,params}]
-window.flowsheetLinks = window.flowsheetLinks || [];    // [{from,to,el}]
-
-(function initFlowsheet(){
+/* ===================== FLOWSHEET (blocks + curved links + solver) ===================== */
+(() => {
   const flowsheetBox = byId("flowsheet");
+  const wires = byId("fsWires");
   const toolboxItems = document.querySelectorAll("#toolbox .draggable");
-  const btnConnect   = byId("fsConnect");
-  const btnRun       = byId("fsRun");
-  const fsMsg        = byId("fsMsg");
-  const fsResult     = byId("fsResult");
+  const btnConnect = byId("fsConnect");
+  const btnRun     = byId("fsRun");
+  const fsMsg      = byId("fsMsg");
+  const fsResult   = byId("fsResult");
 
-  if (!flowsheetBox) return; // flowsheet panel not on page
+  if (!flowsheetBox || !wires) return;
 
-  /* ---------- block creation (desktop DnD + mobile tap-to-place) ---------- */
-  // desktop DnD
+  window.flowsheetUnits = window.flowsheetUnits || [];
+  window.flowsheetLinks = window.flowsheetLinks || []; // {from,to,pathEl}
+
+  /* ---- create blocks (desktop DnD + mobile tap) ---- */
   toolboxItems.forEach(item=>{
-    item.addEventListener("dragstart", (e)=>{
-      e.dataTransfer.setData("unit-type", item.dataset.type);
-    });
+    item.addEventListener("dragstart", e=> e.dataTransfer.setData("unit-type", item.dataset.type));
   });
   flowsheetBox.addEventListener("dragover", e=> e.preventDefault());
-  flowsheetBox.addEventListener("drop", (e)=>{
+  flowsheetBox.addEventListener("drop", e=>{
     e.preventDefault();
     const type = e.dataTransfer.getData("unit-type");
-    if (!type) return;
-    placeUnitAt(type, e.offsetX, e.offsetY);
+    if (type) placeUnitAt(type, e.offsetX, e.offsetY);
   });
 
-  // mobile/tap-to-place
   let pendingType = null;
   toolboxItems.forEach(item=>{
     const arm = ()=>{
@@ -567,127 +531,104 @@ window.flowsheetLinks = window.flowsheetLinks || [];    // [{from,to,el}]
     pendingType = null;
     toolboxItems.forEach(el=>el.classList.remove("active"));
   };
-  flowsheetBox.addEventListener("click",     e => placeFrom(e.clientX, e.clientY));
-  flowsheetBox.addEventListener("touchend",  e => { const t=e.changedTouches?.[0]; if(t) placeFrom(t.clientX,t.clientY); }, {passive:true});
+  flowsheetBox.addEventListener("click", e => placeFrom(e.clientX, e.clientY));
+  flowsheetBox.addEventListener("touchend", e => {
+    const t=e.changedTouches?.[0]; if (t) placeFrom(t.clientX,t.clientY);
+  }, {passive:true});
 
-  // create a unit block and persist
   function placeUnitAt(type, x, y){
     const id = "u" + (flowsheetUnits.length + 1);
     const block = document.createElement("div");
-    block.className = "unit-block";
-    block.dataset.uid = id;
-    Object.assign(block.style, {
-      position: "absolute",
-      left: x + "px",
-      top:  y + "px",
-      padding: "6px 10px",
-      border: "1px solid var(--border, #333)",
-      background: "var(--card, #eee)",
-      borderRadius: "6px",
-      cursor: "grab",
-      userSelect: "none"
-    });
+    block.className = "unit-block"; block.dataset.uid = id;
+    Object.assign(block.style, {position:"absolute", left:x+"px", top:y+"px", padding:"6px 10px", cursor:"grab"});
     block.innerHTML = `<b>${type}</b><br><small>${id}</small>`;
-
-    // open properties on (non-drag) click
     block.addEventListener("click", ()=>{
       if (block._dragJustEnded) { block._dragJustEnded=false; return; }
-      if (typeof window.openPropPanel === "function") window.openPropPanel(id);
+      openPropPanel(id);
     });
-
-    makeBlockMoveable(block, flowsheetBox);
+    makeMoveable(block);
     flowsheetBox.appendChild(block);
 
     flowsheetUnits.push({ id, type, x, y, inputs:[], outputs:[], params:{} });
-    redrawLinks(); // keep lines aligned if any exist
+    redrawLinks();
   }
 
-  // make a block draggable within the canvas (mouse + touch)
-  function makeBlockMoveable(block, container){
-    let startX=0, startY=0, origX=0, origY=0, dragging=false;
-
-    const onDown = (e)=>{
-      if (e.button !== undefined && e.button !== 0) return;
-      dragging = true;
-      block.style.cursor = "grabbing";
-      const r  = block.getBoundingClientRect();
-      const rc = container.getBoundingClientRect();
-      origX = r.left - rc.left;
-      origY = r.top  - rc.top;
-      startX = (e.touches?.[0]?.clientX ?? e.clientX);
-      startY = (e.touches?.[0]?.clientY ?? e.clientY);
-      window.addEventListener("mousemove", onMove);
-      window.addEventListener("mouseup", onUp);
-      window.addEventListener("touchmove", onMove, {passive:false});
-      window.addEventListener("touchend", onUp);
+  function makeMoveable(el){
+    let sx=0, sy=0, ox=0, oy=0, drag=false;
+    const down = (e)=>{
+      if (e.button!==undefined && e.button!==0) return;
+      drag=true; el.style.cursor="grabbing";
+      const r = el.getBoundingClientRect(), rc = flowsheetBox.getBoundingClientRect();
+      ox = r.left-rc.left; oy = r.top-rc.top;
+      sx = (e.touches?.[0]?.clientX ?? e.clientX);
+      sy = (e.touches?.[0]?.clientY ?? e.clientY);
+      window.addEventListener("mousemove", move);
+      window.addEventListener("mouseup", up);
+      window.addEventListener("touchmove", move, {passive:false});
+      window.addEventListener("touchend", up);
       e.preventDefault?.();
     };
-    const onMove = (e)=>{
-      if (!dragging) return;
+    const move = (e)=>{
+      if (!drag) return;
       const x = (e.touches?.[0]?.clientX ?? e.clientX);
       const y = (e.touches?.[0]?.clientY ?? e.clientY);
-      const dx = x - startX, dy = y - startY;
-      const rc = container.getBoundingClientRect();
-      const nx = Math.max(0, Math.min(rc.width  - block.offsetWidth,  origX + dx));
-      const ny = Math.max(0, Math.min(rc.height - block.offsetHeight, origY + dy));
-      block.style.left = nx + "px";
-      block.style.top  = ny + "px";
+      const rc = flowsheetBox.getBoundingClientRect();
+      const nx = Math.max(0, Math.min(rc.width-el.offsetWidth,  ox + x - sx));
+      const ny = Math.max(0, Math.min(rc.height - el.offsetHeight, oy + y - sy));
+      el.style.left = nx + "px";
+      el.style.top  = ny + "px";
+      redrawLinks();
       e.preventDefault?.();
-      redrawLinks();
     };
-    const onUp = ()=>{
-      if (!dragging) return;
-      dragging = false;
-      block.style.cursor = "grab";
-      block._dragJustEnded = true; setTimeout(()=>block._dragJustEnded=false, 50);
-      // persist coords
-      const u = flowsheetUnits.find(x=>x.id===block.dataset.uid);
-      if (u){ u.x = parseFloat(block.style.left)||0; u.y = parseFloat(block.style.top)||0; }
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-      window.removeEventListener("touchmove", onMove);
-      window.removeEventListener("touchend", onUp);
-      redrawLinks();
-    };
+    const up = ()=>{
+      if (!drag) return;
+      drag = false;
+      el.style.cursor = "grab";
+      el._dragJustEnded = true; setTimeout(()=>el._dragJustEnded=false, 50);
 
-    block.addEventListener("mousedown", onDown);
-    block.addEventListener("touchstart", onDown, {passive:false});
+      const u = flowsheetUnits.find(x=>x.id===el.dataset.uid);
+      if (u){
+        u.x = parseFloat(el.style.left) || 0;
+        u.y = parseFloat(el.style.top)  || 0;
+      }
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+      window.removeEventListener("touchmove", move);
+      window.removeEventListener("touchend", up);
+      redrawLinks();
+    };
+    el.addEventListener("mousedown", down);
+    el.addEventListener("touchstart", down, {passive:false});
   }
 
-  /* -------------------------- connections -------------------------- */
-  let connectMode = false;
-  let pendingSrc  = null;
-
+  /* ---------- connect mode (source → target) ---------- */
+  let connectMode = false, pendingSrc = null;
   btnConnect?.addEventListener("click", ()=>{
     connectMode = !connectMode;
     pendingSrc = null;
     btnConnect.classList.toggle("primary", connectMode);
-    if (fsMsg) fsMsg.textContent = connectMode ? "Clique une source puis une cible." : "";
+    fsMsg.textContent = connectMode ? "Clique une source puis une cible…" : "";
   });
 
   flowsheetBox.addEventListener("click", (e)=>{
     if (!connectMode) return;
-    const blk = e.target.closest(".unit-block");
-    if (!blk) return;
+    const blk = e.target.closest(".unit-block"); if (!blk) return;
     const id = blk.dataset.uid;
-    if (!pendingSrc){
-      pendingSrc = id;
-      if (fsMsg) fsMsg.textContent = `Source: ${id}. Choisis la cible…`;
-      return;
-    }
-    if (pendingSrc === id){ pendingSrc = null; if (fsMsg) fsMsg.textContent=""; return; }
+    if (!pendingSrc){ pendingSrc = id; fsMsg.textContent = `Source: ${id} → choisis la cible…`; return; }
+    if (pendingSrc === id){ pendingSrc = null; fsMsg.textContent = ""; return; }
     addLink(pendingSrc, id);
     pendingSrc = null;
-    if (fsMsg) fsMsg.textContent = "Lien créé.";
+    fsMsg.textContent = "Lien créé.";
   });
 
+  /* ---------- wires: smooth quadratic Bézier ---------- */
   function addLink(from, to){
-    const el = document.createElement("div");
-    el.className = "stream-line";
-    el.style.position = "absolute";
-    el.style.borderTop = "2px solid #67e8f9";
-    flowsheetBox.appendChild(el);
-    flowsheetLinks.push({from,to,el});
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("fill","none");
+    path.setAttribute("stroke","#67e8f9");
+    path.setAttribute("stroke-width","2.2");
+    wires.appendChild(path);
+    flowsheetLinks.push({from, to, pathEl: path});
     redrawLinks();
   }
 
@@ -695,29 +636,34 @@ window.flowsheetLinks = window.flowsheetLinks || [];    // [{from,to,el}]
     const blk = [...flowsheetBox.querySelectorAll(".unit-block")].find(b=>b.dataset.uid===id);
     if (!blk) return {x:0,y:0};
     const r = blk.getBoundingClientRect();
-    const rc= flowsheetBox.getBoundingClientRect();
-    return { x: r.left-rc.left + r.width/2, y: r.top-rc.top + r.height/2 };
+    const rc = flowsheetBox.getBoundingClientRect();
+    return { x: r.left - rc.left + r.width/2, y: r.top - rc.top + r.height/2 };
   }
 
   function redrawLinks(){
+    const rc = flowsheetBox.getBoundingClientRect();
+    wires.setAttribute("viewBox", `0 0 ${rc.width} ${rc.height}`);
+    wires.setAttribute("width",  rc.width);
+    wires.setAttribute("height", rc.height);
+
     flowsheetLinks.forEach(l=>{
       const a = centerOfBlock(l.from);
       const b = centerOfBlock(l.to);
-      const x1=a.x, y1=a.y, x2=b.x, y2=b.y;
-      const left = Math.min(x1,x2), top = Math.min(y1,y2);
-      const w = Math.abs(x2-x1),    h  = Math.abs(y2-y1);
-      Object.assign(l.el.style, {
-        left:left+"px", top:(top + h/2)+"px", width:w+"px", height:"0px"
-      });
+      // control point offset (perp to AB) for a gentle curve
+      const mx = (a.x + b.x)/2, my = (a.y + b.y)/2;
+      const ox = 0.25*(b.y - a.y);
+      const oy = -0.25*(b.x - a.x);
+      const cx = mx + ox, cy = my + oy;
+      l.pathEl.setAttribute("d", `M ${a.x},${a.y} Q ${cx},${cy} ${b.x},${b.y}`);
     });
   }
   new ResizeObserver(redrawLinks).observe(flowsheetBox);
 
-  /* ---------------------------- solver ---------------------------- */
+  /* ---------- RUN: execute flowsheet ---------- */
   btnRun?.addEventListener("click", ()=>{
     const report = runFlowsheet();
     if (fsResult) fsResult.innerHTML = report.html || "";
-    if (fsMsg) fsMsg.textContent = report.error ? ("❌ " + report.error) : "✅ Calcul terminé.";
+    if (fsMsg)    fsMsg.textContent  = report.error ? ("❌ " + report.error) : "✅ Calcul terminé.";
   });
 
   function runFlowsheet(){
@@ -726,7 +672,7 @@ window.flowsheetLinks = window.flowsheetLinks || [];    // [{from,to,el}]
     const comps = parseList(byId("components")?.value || "");
     const S = comps.length;
 
-    // adjacency lists
+    // adjacency
     const inAdj = new Map(), outAdj = new Map();
     units.forEach(u=>{ inAdj.set(u.id, []); outAdj.set(u.id, []); });
     links.forEach(l=>{
@@ -734,7 +680,7 @@ window.flowsheetLinks = window.flowsheetLinks || [];    // [{from,to,el}]
       if (inAdj.has(l.to))    inAdj.get(l.to).push(l.from);
     });
 
-    // topo order
+    // Kahn topological order
     const indeg = new Map(units.map(u=>[u.id, inAdj.get(u.id).length]));
     const q = units.filter(u=> indeg.get(u.id)===0).map(u=>u.id);
     const order = [];
@@ -749,20 +695,18 @@ window.flowsheetLinks = window.flowsheetLinks || [];    // [{from,to,el}]
       return {error:"Cycle détecté (le graphe doit être acyclique).", html:""};
     }
 
-    // results per unit: first outlet stream (we keep it simple for now)
-    const results = new Map(); // id -> [{F, x[], comps}]
+    // results map: id -> array of outlet streams
+    const results = new Map();
 
-    // helpers
     const inboundStreams = (uid)=>{
       const srcs = inAdj.get(uid)||[];
-      const streams = srcs.map(sid => (results.get(sid)||[])[0]).filter(Boolean);
-      return streams;
+      return srcs.map(sid => (results.get(sid)||[])[0]).filter(Boolean);
     };
 
-    // clear badges
+    // clear old badges
     flowsheetBox.querySelectorAll(".unit-badge").forEach(b=>b.remove());
 
-    // exec in order
+    // execute units
     for (const uid of order){
       const u = units.find(x=>x.id===uid);
       let outs = [];
@@ -775,8 +719,8 @@ window.flowsheetLinks = window.flowsheetLinks || [];    // [{from,to,el}]
 
       } else if (u.type === "mixer"){
         const ins = inboundStreams(uid);
-        if (!ins.length) outs=[{F:0, x:Array(S).fill(0), comps}];
-        else {
+        if (!ins.length){ outs=[{F:0, x:Array(S).fill(0), comps}]; }
+        else{
           const F = sum(ins.map(s=>s.F));
           const numer = Array(S).fill(0);
           ins.forEach(s => comps.forEach((_,j)=> numer[j] += s.F*(s.x[j]||0)));
@@ -790,11 +734,10 @@ window.flowsheetLinks = window.flowsheetLinks || [];    // [{from,to,el}]
         const n = Math.max(2, parseInt(u.params?.nOut || 2, 10));
         let phi = (u.params?.phi || Array(n).fill(0)).slice(0,n);
         phi = normalize(phi);
-        // For now we route only the first outlet forward; others require explicit stream mapping UI.
         outs = phi.map(p => ({F: p*feed.F, x: feed.x.slice(), comps}));
 
       } else if (u.type === "binary-sep"){
-        // Assumes comps[0] is A, comps[1] is B
+        // assume comps[0] is A
         const ins = inboundStreams(uid);
         const f = ins[0] || {F:0, x:[1,0], comps};
         const F = f.F||0, zA = f.x[0]||0;
@@ -802,7 +745,7 @@ window.flowsheetLinks = window.flowsheetLinks || [];    // [{from,to,el}]
         const DxD = RA * F * zA;
 
         let D, xD, B, xB;
-        if (!isNaN(+u.params?.xB)){      xB = clamp01(+u.params.xB); B = (F*zA - DxD) / (xB||1e-12); D = F - B; xD = D>0 ? DxD/D : 0; }
+        if (!isNaN(+u.params?.xB)){      xB = clamp01(+u.params.xB); B = (F*zA - DxD) / (xB || 1e-12); D = F - B; xD = D>0 ? DxD/D : 0; }
         else if (!isNaN(+u.params?.B)){  B = +u.params.B; D = F - B; xD = D>0 ? DxD/D : 0; xB = B>0 ? (F*zA - DxD)/B : 0; }
         else if (!isNaN(+u.params?.D)){  D = +u.params.D; B = F - D; xD = D>0 ? DxD/D : 0; xB = B>0 ? (F*zA - DxD)/B : 0; }
         else if (!isNaN(+u.params?.xD)){ xD = clamp01(+u.params.xD); D = (xD>0? DxD/xD : 0); B = F - D; xB = B>0 ? (F*zA - DxD)/B : 0; }
@@ -811,12 +754,11 @@ window.flowsheetLinks = window.flowsheetLinks || [];    // [{from,to,el}]
         const xDvec = [clamp01(xD), 1-clamp01(xD)];
         const xBvec = [clamp01(xB), 1-clamp01(xB)];
         outs = [
-          {F:D, x:xDvec, comps}, // distillate (first)
-          {F:B, x:xBvec, comps}, // bottoms (second)
+          {F:D, x:xDvec, comps}, // distillate
+          {F:B, x:xBvec, comps}, // bottoms
         ];
 
       } else if (u.type === "rxn-simple"){
-        // Needs: nu (array S), and possibly xi
         const ins = inboundStreams(uid);
         const f = ins[0] || {F:0, x:Array(S).fill(0), comps};
         const Nin = f.x.map(xi => (f.F||0)*xi);
@@ -828,7 +770,6 @@ window.flowsheetLinks = window.flowsheetLinks || [];    // [{from,to,el}]
         outs = [{F:Fout, x:xout, comps}];
 
       } else if (u.type === "rxn-multi"){
-        // Needs: R (int), NU (R x S), xi (R)
         const ins = inboundStreams(uid);
         const f = ins[0] || {F:0, x:Array(S).fill(0), comps};
         const Nin = f.x.map(xi => (f.F||0)*xi);
@@ -842,14 +783,12 @@ window.flowsheetLinks = window.flowsheetLinks || [];    // [{from,to,el}]
         outs = [{F:Fout, x:xout, comps}];
 
       } else if (u.type === "sink"){
-        const ins = inboundStreams(uid);
-        const f = ins[0] || {F:0, x:Array(S).fill(0), comps};
-        outs = []; // terminal; we read inbound when building the summary
+        outs = []; // terminal
       }
 
       results.set(uid, outs);
 
-      // badge
+      // badge on block
       const blk = [...flowsheetBox.querySelectorAll(".unit-block")].find(b=>b.dataset.uid===uid);
       if (blk){
         blk.querySelector(".unit-badge")?.remove();
@@ -859,8 +798,8 @@ window.flowsheetLinks = window.flowsheetLinks || [];    // [{from,to,el}]
         badge.textContent = out0 ? `F=${(out0.F||0).toFixed(2)}` : "—";
         Object.assign(badge.style, {
           position:"absolute", right:"6px", bottom:"6px",
-          fontSize:"11px", background:"#f1f5f9", border:"1px solid #94a3b8",
-          borderRadius:"6px", padding:"2px 6px"
+          fontSize:"11px", background:"#f1f5f9", color:"#0f172a",
+          border:"1px solid #94a3b8", borderRadius:"6px", padding:"2px 6px"
         });
         blk.appendChild(badge);
       }
@@ -881,4 +820,3 @@ window.flowsheetLinks = window.flowsheetLinks || [];    // [{from,to,el}]
     return {html};
   }
 })();
-// getUnit + openPropPanel already defined at top and used here
