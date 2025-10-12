@@ -166,7 +166,6 @@
       <button class="primary" id="solveRxnMulti">Tester l’indépendance & Calculer</button>
       <div class="result" id="rxnMultiResult"></div>
     </section>
-<!-- Flowsheet builder -->
 <section class="card unit-panel" id="panel-flowsheet" hidden>
   <h2>Flowsheet Builder</h2>
 
@@ -176,21 +175,21 @@
     <small id="fsMsg"></small>
   </div>
 
-  <div class="row">
-    <div id="toolbox" style="flex:0 0 170px; border:1px solid #ccc; padding:10px">
-      <h3>Unités</h3>
-      <div class="draggable" draggable="true" data-type="feed">🟩 Feed</div>
-      <div class="draggable" draggable="true" data-type="mixer">➕ Mixer</div>
-      <div class="draggable" draggable="true" data-type="splitter">➗ Splitter</div>
-      <div class="draggable" draggable="true" data-type="binary-sep">⚗️ Binaire</div>
-      <div class="draggable" draggable="true" data-type="rxn-simple">🔥 Réacteur simple</div>
-      <div class="draggable" draggable="true" data-type="rxn-multi">🔥 Réacteur multiple</div>
-      <div class="draggable" draggable="true" data-type="sink">🟦 Sink</div>
-    </div>
+  <!-- toolbox stays ABOVE -->
+  <div id="toolbox" class="toolbox">
+    <div class="draggable" draggable="true" data-type="feed">🟩 Feed</div>
+    <div class="draggable" draggable="true" data-type="mixer">➕ Mixer</div>
+    <div class="draggable" draggable="true" data-type="splitter">➗ Splitter</div>
+    <div class="draggable" draggable="true" data-type="binary-sep">⚗️ Binaire</div>
+    <div class="draggable" draggable="true" data-type="rxn-simple">🔥 Réacteur simple</div>
+    <div class="draggable" draggable="true" data-type="rxn-multi">🔥 Réacteur multiple</div>
+    <div class="draggable" draggable="true" data-type="sink">🟦 Sink</div>
+  </div>
 
-    <div id="flowsheet" style="flex:1; border:1px dashed #aaa; min-height:420px; position:relative; margin-left:10px;">
-      <p style="color:#777">Glisse-dépose ou tape pour placer une unité. Bouton “Relier” pour créer un lien.</p>
-    </div>
+  <!-- canvas gets the whole screen height -->
+  <div id="flowsheet" class="canvas">
+    <svg id="fsWires" class="wires"></svg>
+    <!-- blocks are absolutely positioned inside this container -->
   </div>
 
   <div id="fsResult" class="result mt"></div>
