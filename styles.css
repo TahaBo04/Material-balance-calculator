@@ -106,117 +106,64 @@ small{color:#a7bed6}
 }
 
 /* unit blocks – high contrast text */
+/* ===== Flowsheet tweaks (override) ===== */
+
+/* Bigger blocks, clearer text */
 .unit-block{
-  position:absolute;
-  background:#132034;
-  border:1px solid #2a3a55;
-  color:var(--ink);
-  border-radius:12px;
-  padding:6px 10px;
-  box-shadow:0 6px 18px rgba(0,0,0,.25);
-  touch-action:none;          /* smoother touch-drag */
-  z-index:1;                  /* above wires */
-}
-.unit-block b{color:var(--ink)}
-.unit-block small{color:var(--ink-dim)}
-.unit-block:focus-within,.unit-block:hover{outline:2px solid #38bdf8; outline-offset:2px}
-
-/* little output badge inside blocks */
-.unit-badge{
-  position:absolute; right:6px; bottom:6px;
-  font-size:11px; background:#f1f5f9; color:#0f172a;
-  border:1px solid #94a3b8; border-radius:6px; padding:2px 6px;
-}
-
-/* stream-line kept for backwards compatibility (not used with SVG) */
-.stream-line{
-  position:absolute; border-top:2px solid #67e8f9; pointer-events:none;
-}
-
-/* ======= Input / Output buttons on flowsheet blocks ======= */
-.unit-block {
-  position: absolute;
-  background: #1b2433;
-  border: 1px solid #2c3b52;
-  border-radius: 10px;
-  color: #ffffff;
+  min-width: 140px;
+  min-height: 96px;
+  padding: 12px 16px;
   text-align: center;
-  padding: 8px 12px;
-  font-size: 13px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+  font-size: 14px;            /* was 13px */
+  line-height: 1.25;
+  border-radius: 14px;
+}
+.unit-block b{
+  display:block;
+  font-size: 16px;
+  margin-bottom: 4px;
+}
+.unit-block small{
+  opacity:.9;
 }
 
-/* The small buttons on each side */
-.unit-block button.io-btn {
-  position: absolute;
+/* Larger, thumb-friendly side buttons */
+.unit-block button.io-btn{
   top: 50%;
   transform: translateY(-50%);
-  width: 22px;
-  height: 22px;
-  border: none;
+  width: 28px;                /* was 22px */
+  height: 28px;
+  line-height: 28px;
+  font-size: 16px;            /* emoji size */
   border-radius: 50%;
-  cursor: pointer;
-  font-size: 14px;
-  line-height: 22px;
-  color: #fff;
-  background: var(--acc);
-  box-shadow: 0 0 6px var(--acc);
-  opacity: 0.85;
-  transition: 0.2s;
+  z-index: 2;                 /* above block */
+  box-shadow: 0 0 10px rgba(39,230,139,.6);
 }
+.unit-block button.io-left{  left: -36px; }  /* push out a bit more */
+.unit-block button.io-right{ right: -36px; }
 
-.unit-block button.io-btn:hover {
+.unit-block button.io-btn:hover,
+.unit-block button.io-btn:focus-visible{
   opacity: 1;
-  transform: translateY(-50%) scale(1.1);
+  transform: translateY(-50%) scale(1.08);
+  outline: none;
 }
 
-.unit-block button.io-left { left: -28px; }   /* ⚙️ button */
-.unit-block button.io-right { right: -28px; } /* 🧮 button */
-
-/* Popup styling for input/output forms */
-.io-popup {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background: #111827;
-  color: #e8f0ff;
-  border: 1px solid #334155;
+/* Popup: slight spacing polish (keeps your colors) */
+.io-popup{
+  padding: 18px 16px;
   border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
-  z-index: 2000;
-  width: 320px;
-  max-width: 90vw;
-  padding: 20px;
-  display: none;
 }
-.io-popup h3 { margin-top: 0; color: var(--acc); font-size: 18px; }
-.io-popup input, .io-popup textarea {
-  width: 100%;
-  padding: 8px;
-  border-radius: 8px;
-  border: 1px solid #334155;
-  background: #0a121e;
-  color: #e8f0ff;
-  margin-bottom: 8px;
-}
-.io-popup button.close {
-  position: absolute;
-  top: 6px;
-  right: 10px;
-  background: transparent;
-  color: #fff;
-  border: none;
-  font-size: 18px;
-  cursor: pointer;
-}
-.io-popup button.save {
-  background: var(--acc);
-  color: #000;
-  border: none;
-  padding: 8px 14px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: 600;
-  margin-top: 10px;
+.io-popup h3{ margin: 0 0 10px; }
+.io-popup .row{ gap:8px; }
+
+/* On small screens, keep blocks tappable */
+@media (max-width: 480px){
+  .unit-block{
+    min-width: 130px;
+    min-height: 92px;
+    padding: 12px;
+  }
+  .unit-block button.io-left{  left: -34px; }
+  .unit-block button.io-right{ right: -34px; }
 }
